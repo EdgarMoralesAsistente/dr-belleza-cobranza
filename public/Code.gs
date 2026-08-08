@@ -1,23 +1,17 @@
 /**
- * Google Apps Script (Code.gs) source code for Dr. Belleza Medical & Aesthetic Financing App.
- * This code should be copied into Google Apps Script connected to Google Sheets.
- */
-
-export const CODE_GS_SCRIPT = `/**
  * DR. BELLEZA - BACKEND GOOGLE APPS SCRIPT (Code.gs)
  * Sistema de Gestión Médica, CRM y Financiamiento Estético
  * 
  * INSTRUCCIONES DE DESPLIEGUE:
  * 1. Crea un nuevo Google Sheet en Google Drive llamado "Dr. Belleza - BD Médica".
  * 2. Ve a Extensiones -> Apps Script.
- * 3. Borra el código existente y pega este archivo Code.gs por completo.
- * 4. Ejecuta la función 'setupSpreadsheet()' una vez para crear las 5 pestañas automáticamente.
+ * 3. Borra todo el código existente e inserta este archivo Code.gs.
+ * 4. Selecciona la función 'setupSpreadsheet' en la barra superior y haz clic en 'Ejecutar'.
  * 5. Haz clic en 'Desplegar' -> 'Nuevo Despliegue'.
  * 6. Selecciona Tipo: 'Aplicación Web'.
  * 7. Ejecutar como: 'Yo (tu cuenta)'.
  * 8. Quién tiene acceso: 'Cualquier persona' (Anyone).
- * 9. Haz clic en 'Desplegar', autoriza los permisos y copia la URL de la Web App generada.
- * 10. Pega esa URL en la configuración de la Web App Dr. Belleza.
+ * 9. Copia la URL que termina en /exec y pégala en la aplicación web.
  */
 
 const SPREADSHEET = SpreadsheetApp.getActiveSpreadsheet();
@@ -350,4 +344,3 @@ function replaceSheetData(sheetName, rowsData) {
     sheet.getRange(2, 1, cleanRows.length, cleanRows[0].length).setValues(cleanRows);
   }
 }
-`;

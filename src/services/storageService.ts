@@ -310,9 +310,12 @@ export class StorageService {
         localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
         return { success: true, message: '¡Base de datos cargada a Google Sheets con éxito!' };
       }
-      return { success: false, message: result.error || 'Error al volcar datos a Sheets.' };
+      return { 
+        success: false, 
+        message: result?.error ? `Error desde Google Sheets: ${result.error}` : 'Error al volcar datos a Sheets. Copia y actualiza el código Code.gs en Google Apps Script.' 
+      };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Error al subir datos.' };
+      return { success: false, message: err.message || 'Error al subir datos a Google Sheets.' };
     }
   }
 

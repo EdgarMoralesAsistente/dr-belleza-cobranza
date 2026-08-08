@@ -260,13 +260,24 @@ export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
             <span className="font-bold text-slate-200">Code.gs (Backend Google Apps Script)</span>
           </div>
 
-          <button
-            onClick={handleCopyCode}
-            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 text-xs rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copiado' : 'Copiar'}</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <a
+              href="/Code.gs"
+              download="Code.gs"
+              className="px-3 py-1 bg-teal-800 hover:bg-teal-700 text-teal-100 text-xs rounded-lg transition-colors flex items-center space-x-1 cursor-pointer font-sans no-underline"
+            >
+              <Download className="w-3.5 h-3.5 text-teal-300" />
+              <span>Descargar Code.gs</span>
+            </a>
+
+            <button
+              onClick={handleCopyCode}
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 text-xs rounded-lg transition-colors flex items-center space-x-1 cursor-pointer font-sans"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Copiado' : 'Copiar'}</span>
+            </button>
+          </div>
         </div>
 
         <pre className="max-h-96 overflow-y-auto p-3 bg-slate-950 rounded-lg text-emerald-400/90 leading-relaxed select-all">
