@@ -39,6 +39,7 @@ export interface Usuario {
   rol: RolUsuario;
   estatus: 'Activo' | 'Inactivo';
   fechaCreacion: string;
+  fotoUrl?: string;
 }
 
 export interface ActividadCRM {

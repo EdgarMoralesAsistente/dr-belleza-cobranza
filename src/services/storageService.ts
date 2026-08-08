@@ -58,9 +58,23 @@ export class StorageService {
   static getUsuarios(): Usuario[] {
     const data = localStorage.getItem(KEYS.USUARIOS);
     let list: Usuario[] = data ? JSON.parse(data) : INITIAL_USUARIOS;
+    
+    // Purgar usuarios antiguos de demostración
+    const oldDemoEmails = [
+      'dra.isabella@drbelleza.com',
+      'maria.crm@drbelleza.com',
+      'dr.mendoza@drbelleza.com',
+      'carlos.finanzas@drbelleza.com'
+    ];
+    const initialCount = list.length;
+    list = list.filter(u => !oldDemoEmails.includes(u.email.toLowerCase()));
+
     const edgarExists = list.some(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
     if (!edgarExists) {
-      list = [INITIAL_USUARIOS[0], ...list.filter(u => u.usuarioId !== 'USR-001')];
+      list = [INITIAL_USUARIOS[0], ...list];
+    }
+
+    if (list.length !== initialCount || !data) {
       localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
     }
     return list;
@@ -324,6 +338,12 @@ export class StorageService {
     }
     this.saveUsuarios(list);
 
+    // Si se actualizó el usuario que tiene sesión activa, actualizar la sesión
+    const current = this.getAuthenticatedUser();
+    if (current && current.usuarioId === usuario.usuarioId) {
+      this.setCurrentUser(usuario);
+    }
+
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
       GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario }).catch(console.error);
@@ -444,6 +464,10 @@ export class StorageService {
     localStorage.setItem(KEYS.PAGOS, JSON.stringify([]));
     localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify([]));
     localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify([]));
+    
+    // Dejar únicamente al Administrador inicial (Edgar Morales) en usuarios
+    const adminOnly = [INITIAL_USUARIOS[0]];
+    localStorage.setItem(KEYS.USUARIOS, JSON.stringify(adminOnly));
 
     if (syncToSheets) {
       const gasUrl = this.getGasUrl();
@@ -453,21 +477,21 @@ export class StorageService {
             action: 'syncFullDatabase',
             pacientes: [],
             pagos: [],
-            usuarios: this.getUsuarios(),
+            usuarios: adminOnly,
             actividades: [],
             financiamientos: []
           };
           const result = await GasService.sendPost(gasUrl, payload);
           if (result && result.success) {
             localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
-            return { success: true, message: '¡Base de datos vaciada con éxito tanto en la Web App como en Google Sheets!' };
+            return { success: true, message: '¡Base de datos vaciada con éxito (Sistema Virgen) en la Web App y Google Sheets!' };
           }
         } catch (e: any) {
           return { success: true, message: 'Base de datos de la Web App vaciada. No se pudo vaciar Google Sheets (Verifica la URL o conexión).' };
         }
       }
     }
-    return { success: true, message: '¡Base de datos local vaciada con éxito!' };
+    return { success: true, message: '¡Base de datos local vaciada con éxito (Sistema Virgen)!' };
   }
 
   // --- REINICIAR A DATOS DEMO ---

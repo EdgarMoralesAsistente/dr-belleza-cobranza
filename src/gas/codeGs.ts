@@ -63,8 +63,8 @@ function setupSpreadsheet() {
   if (!sheetUsuarios) {
     sheetUsuarios = ss.insertSheet(SHEETS.USUARIOS);
   }
-  sheetUsuarios.getRange("A1:G1").setValues([[
-    "Usuario_ID", "Nombre", "Email", "Password_Hash", "Rol", "Estatus", "Fecha_Creacion"
+  sheetUsuarios.getRange("A1:H1").setValues([[
+    "Usuario_ID", "Nombre", "Email", "Password_Hash", "Rol", "Estatus", "Fecha_Creacion", "Foto_Url"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
 
   // 4. Pestaña Actividades_CRM
@@ -213,7 +213,7 @@ function doPost(e) {
     if (action === 'saveUsuario') {
       const u = contents.usuario;
       updateOrAppendRow(SHEETS.USUARIOS, 0, u.usuarioId, [
-        u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion
+        u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion, u.fotoUrl || ''
       ]);
       return responseJSON({ success: true, message: 'Usuario guardado' });
     }
@@ -239,7 +239,7 @@ function doPost(e) {
 
       if (usuarios && Array.isArray(usuarios)) {
         replaceSheetData(SHEETS.USUARIOS, usuarios.map(u => [
-          u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion
+          u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion, u.fotoUrl || ''
         ]));
       }
 

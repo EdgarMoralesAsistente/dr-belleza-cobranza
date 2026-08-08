@@ -23,6 +23,7 @@ interface HeaderProps {
   currentUser: Usuario;
   onUserChange: (user: Usuario) => void;
   onLogout?: () => void;
+  onOpenProfileModal?: () => void;
   onOpenGasConfig: () => void;
   onSelectPatientByQuery?: (query: string) => void;
   actividades: ActividadCRM[];
@@ -34,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onUserChange,
   onLogout,
+  onOpenProfileModal,
   onOpenGasConfig,
   onSelectPatientByQuery,
   actividades,
@@ -225,14 +227,18 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* USUARIO ACTIVO Y RBAC SELECTOR */}
+            {/* USUARIO ACTIVO Y MENÚ DE PERFIL */}
             <div className="relative">
               <button
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-100 border border-slate-200 transition-colors text-left"
+                className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-100 border border-slate-200 transition-colors text-left cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center border border-teal-200">
-                  {currentUser.nombre.substring(0, 2).toUpperCase()}
+                <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center border border-teal-200 overflow-hidden">
+                  {currentUser.fotoUrl ? (
+                    <img src={currentUser.fotoUrl} alt={currentUser.nombre} className="w-full h-full object-cover" />
+                  ) : (
+                    currentUser.nombre.substring(0, 2).toUpperCase()
+                  )}
                 </div>
                 <div className="hidden lg:block">
                   <div className="text-xs font-semibold text-slate-800 leading-tight">
@@ -245,38 +251,41 @@ export const Header: React.FC<HeaderProps> = ({
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
               </button>
 
-              {/* DROPDOWN DE CAMBIO DE USUARIO (SIMULACIÓN RBAC) */}
+              {/* DROPDOWN DE PERFIL DE USUARIO */}
               {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50">
-                  <div className="px-3 py-2 border-b border-slate-100">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cambiar Perfil (RBAC Demo)</p>
-                    <p className="text-xs text-slate-600 mt-0.5">Rol Actual: <strong className="text-slate-900">{currentUser.rol}</strong></p>
-                  </div>
-                  <div className="py-1">
-                    {usersList.map((u) => (
-                      <button
-                        key={u.usuarioId}
-                        onClick={() => {
-                          onUserChange(u);
-                          setShowUserDropdown(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-teal-50 transition-colors ${
-                          u.usuarioId === currentUser.usuarioId ? 'bg-teal-50/80 font-semibold text-teal-900' : 'text-slate-700'
-                        }`}
-                      >
-                        <div>
-                          <div>{u.nombre}</div>
-                          <div className="text-[10px] text-slate-500">{u.email}</div>
-                        </div>
-                        <span className={`text-[10px] border px-1.5 py-0.5 rounded-md ${getRoleBadgeColor(u.rol)}`}>
-                          {u.rol}
-                        </span>
-                      </button>
-                    ))}
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in duration-150">
+                  <div className="px-3 py-2.5 border-b border-slate-100 flex items-center space-x-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-900 font-bold text-xs flex items-center justify-center border border-teal-200 shrink-0 overflow-hidden">
+                      {currentUser.fotoUrl ? (
+                        <img src={currentUser.fotoUrl} alt={currentUser.nombre} className="w-full h-full object-cover" />
+                      ) : (
+                        currentUser.nombre.substring(0, 2).toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-900 truncate">{currentUser.nombre}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{currentUser.email}</p>
+                      <span className={`inline-block mt-0.5 text-[9px] font-bold border px-1.5 py-0.2 rounded-md ${getRoleBadgeColor(currentUser.rol)}`}>
+                        {currentUser.rol}
+                      </span>
+                    </div>
                   </div>
 
-                  {onLogout && (
-                    <div className="pt-1 mt-1 border-t border-slate-100 px-1">
+                  <div className="p-1 space-y-0.5">
+                    {onOpenProfileModal && (
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenProfileModal();
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-900 rounded-lg transition-colors flex items-center space-x-2 cursor-pointer"
+                      >
+                        <User className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Editar Mi Perfil</span>
+                      </button>
+                    )}
+
+                    {onLogout && (
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
@@ -287,8 +296,8 @@ export const Header: React.FC<HeaderProps> = ({
                         <LogOut className="w-3.5 h-3.5" />
                         <span>Cerrar Sesión</span>
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </div>

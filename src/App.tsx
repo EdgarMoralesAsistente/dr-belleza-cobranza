@@ -18,6 +18,7 @@ import { NewActivityModal } from './components/NewActivityModal';
 import { NewFinancingPlanModal } from './components/NewFinancingPlanModal';
 import { NewUserModal } from './components/NewUserModal';
 import { ExecutivePresentationModal } from './components/ExecutivePresentationModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { LoginView } from './components/LoginView';
 
 import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia } from './types';
@@ -45,6 +46,7 @@ export default function App() {
   const [showNewFinancingModal, setShowNewFinancingModal] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [showPresentationModal, setShowPresentationModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const [preselectedPatientForPayment, setPreselectedPatientForPayment] = useState<Paciente | null>(null);
   const [preselectedPatientForActivity, setPreselectedPatientForActivity] = useState<Paciente | null>(null);
@@ -165,6 +167,7 @@ export default function App() {
         currentUser={currentUser}
         onUserChange={handleUserChange}
         onLogout={handleLogout}
+        onOpenProfileModal={() => setShowProfileModal(true)}
         onOpenGasConfig={() => setActiveTab('google-sheets')}
         onSelectPatientByQuery={handleSelectPatientByQuery}
         actividades={actividades}
@@ -381,6 +384,18 @@ export default function App() {
       {showPresentationModal && (
         <ExecutivePresentationModal
           onClose={() => setShowPresentationModal(false)}
+        />
+      )}
+
+      {/* MODAL EDITAR MI PERFIL */}
+      {showProfileModal && currentUser && (
+        <UserProfileModal
+          currentUser={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onSave={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            refreshData();
+          }}
         />
       )}
 
