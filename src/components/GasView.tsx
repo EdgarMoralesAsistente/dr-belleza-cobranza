@@ -11,7 +11,8 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
-  HelpCircle
+  HelpCircle,
+  Trash2
 } from 'lucide-react';
 import { CODE_GS_SCRIPT } from '../gas/codeGs';
 import { StorageService } from '../services/storageService';
@@ -80,6 +81,17 @@ export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
     const res = await StorageService.pushFullDatabaseToGas();
     setIsSyncing(false);
     setSyncMessage(res.message);
+  };
+
+  const handleClearDatabase = async () => {
+    if (confirm('⚠️ ¿Estás seguro de que deseas VACIAR completamente toda la base de datos?\n\nEsto borrará todos los pacientes, abonos, pagos y financiamientos tanto de esta Web App como de tu Google Sheets para dejar el sistema 100% virgen.')) {
+      setIsSyncing(true);
+      setSyncMessage(null);
+      const res = await StorageService.clearAllData(true);
+      setIsSyncing(false);
+      setSyncMessage(res.message);
+      onDataSyncSuccess();
+    }
   };
 
   return (
@@ -176,34 +188,46 @@ export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
           </div>
         )}
 
-        {/* ACCIONES DE SINCRONIZACIÓN */}
-        {gasUrl && (
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-slate-500">
-              Acciones de Sincronización Manual entre la Web App y tu Google Sheet:
-            </div>
-
-            <div className="flex items-center space-x-2 w-full sm:w-auto">
-              <button
-                onClick={handleSyncFromGas}
-                disabled={isSyncing}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <Download className="w-3.5 h-3.5 text-teal-600" />
-                <span>Descargar de Sheets</span>
-              </button>
-
-              <button
-                onClick={handlePushToGas}
-                disabled={isSyncing}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Subir Local a Sheets</span>
-              </button>
-            </div>
+        {/* ACCIONES DE SINCRONIZACIÓN Y LIMPIEZA */}
+        <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-slate-500">
+            Mantenimiento y Control de Datos:
           </div>
-        )}
+
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {gasUrl && (
+              <>
+                <button
+                  onClick={handleSyncFromGas}
+                  disabled={isSyncing}
+                  className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Descargar de Sheets</span>
+                </button>
+
+                <button
+                  onClick={handlePushToGas}
+                  disabled={isSyncing}
+                  className="flex-1 sm:flex-none px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Subir Local a Sheets</span>
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={handleClearDatabase}
+              disabled={isSyncing}
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-lg border border-rose-200 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              title="Borra todos los pacientes y pagos para empezar desde cero"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>Vaciar BD (Sistema Virgen)</span>
+            </button>
+          </div>
+        </div>
 
         {syncMessage && (
           <div className="text-xs font-semibold text-teal-800 bg-teal-50 p-2.5 rounded-lg border border-teal-200">

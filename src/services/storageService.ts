@@ -37,7 +37,8 @@ export class StorageService {
   // --- INICIALIZACIÓN ---
   static getPacientes(): Paciente[] {
     const data = localStorage.getItem(KEYS.PACIENTES);
-    return data ? JSON.parse(data) : INITIAL_PACIENTES;
+    if (data !== null) return JSON.parse(data);
+    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PACIENTES;
   }
 
   static savePacientes(list: Paciente[]): void {
@@ -46,7 +47,8 @@ export class StorageService {
 
   static getPagos(): Pago[] {
     const data = localStorage.getItem(KEYS.PAGOS);
-    return data ? JSON.parse(data) : INITIAL_PAGOS;
+    if (data !== null) return JSON.parse(data);
+    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PAGOS;
   }
 
   static savePagos(list: Pago[]): void {
@@ -55,7 +57,8 @@ export class StorageService {
 
   static getUsuarios(): Usuario[] {
     const data = localStorage.getItem(KEYS.USUARIOS);
-    return data ? JSON.parse(data) : INITIAL_USUARIOS;
+    if (data !== null) return JSON.parse(data);
+    return INITIAL_USUARIOS;
   }
 
   static saveUsuarios(list: Usuario[]): void {
@@ -81,7 +84,8 @@ export class StorageService {
 
   static getActividades(): ActividadCRM[] {
     const data = localStorage.getItem(KEYS.ACTIVIDADES);
-    return data ? JSON.parse(data) : INITIAL_ACTIVIDADES;
+    if (data !== null) return JSON.parse(data);
+    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_ACTIVIDADES;
   }
 
   static saveActividades(list: ActividadCRM[]): void {
@@ -90,7 +94,8 @@ export class StorageService {
 
   static getFinanciamientos(): FinanciamientoCirugia[] {
     const data = localStorage.getItem(KEYS.FINANCIAMIENTOS);
-    return data ? JSON.parse(data) : INITIAL_FINANCIAMIENTOS;
+    if (data !== null) return JSON.parse(data);
+    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_FINANCIAMIENTOS;
   }
 
   static saveFinanciamientos(list: FinanciamientoCirugia[]): void {
@@ -365,8 +370,42 @@ export class StorageService {
     localStorage.setItem(KEYS.CLINIC_CONFIG, JSON.stringify(config));
   }
 
+  // --- VACIAR BASE DE DATOS (SISTEMA VIRGEN PARA PRODUCCIÓN) ---
+  static async clearAllData(syncToSheets: boolean = true): Promise<{ success: boolean; message: string }> {
+    localStorage.setItem('drb_clean_mode', 'true');
+    localStorage.setItem(KEYS.PACIENTES, JSON.stringify([]));
+    localStorage.setItem(KEYS.PAGOS, JSON.stringify([]));
+    localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify([]));
+    localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify([]));
+
+    if (syncToSheets) {
+      const gasUrl = this.getGasUrl();
+      if (gasUrl) {
+        try {
+          const payload = {
+            action: 'syncFullDatabase',
+            pacientes: [],
+            pagos: [],
+            usuarios: this.getUsuarios(),
+            actividades: [],
+            financiamientos: []
+          };
+          const result = await GasService.sendPost(gasUrl, payload);
+          if (result && result.success) {
+            localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
+            return { success: true, message: '¡Base de datos vaciada con éxito tanto en la Web App como en Google Sheets!' };
+          }
+        } catch (e: any) {
+          return { success: true, message: 'Base de datos de la Web App vaciada. No se pudo vaciar Google Sheets (Verifica la URL o conexión).' };
+        }
+      }
+    }
+    return { success: true, message: '¡Base de datos local vaciada con éxito!' };
+  }
+
   // --- REINICIAR A DATOS DEMO ---
   static resetToDemoData(): void {
+    localStorage.removeItem('drb_clean_mode');
     localStorage.setItem(KEYS.PACIENTES, JSON.stringify(INITIAL_PACIENTES));
     localStorage.setItem(KEYS.PAGOS, JSON.stringify(INITIAL_PAGOS));
     localStorage.setItem(KEYS.USUARIOS, JSON.stringify(INITIAL_USUARIOS));
