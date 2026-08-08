@@ -98,7 +98,12 @@ export class StorageService {
   }
 
   static getGasUrl(): string {
-    return localStorage.getItem(KEYS.GAS_URL) || '';
+    const savedUrl = localStorage.getItem(KEYS.GAS_URL);
+    if (savedUrl && savedUrl.trim()) {
+      return GasService.normalizeUrl(savedUrl);
+    }
+    const envUrl = (import.meta as any).env?.VITE_GAS_URL || (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL || '';
+    return envUrl ? GasService.normalizeUrl(envUrl) : '';
   }
 
   static saveGasUrl(url: string): void {
