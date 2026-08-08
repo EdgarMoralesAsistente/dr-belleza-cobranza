@@ -1,0 +1,6 @@
+{
+  "name": "Dr. Belleza - Gestión Médica y Financiamiento Estético",
+  "description": "Sistema médico y CRM de financiamiento quirúrgico estético con gestión de pacientes, pagos, recibos imprimibles, actividades y sincronización con Google Sheets vía Google Apps Script API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
