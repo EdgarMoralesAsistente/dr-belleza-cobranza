@@ -36,8 +36,10 @@ export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
   };
 
   const handleSaveUrl = () => {
-    StorageService.saveGasUrl(gasUrl);
-    setTestResult({ success: true, message: 'URL guardada localmente.' });
+    const cleaned = GasService.normalizeUrl(gasUrl);
+    setGasUrl(cleaned);
+    StorageService.saveGasUrl(cleaned);
+    setTestResult({ success: true, message: 'URL normalizada y guardada localmente.' });
   };
 
   const handleTestConnection = async () => {
@@ -46,15 +48,18 @@ export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
       return;
     }
 
+    const cleaned = GasService.normalizeUrl(gasUrl);
+    setGasUrl(cleaned);
+
     setIsTesting(true);
     setTestResult(null);
 
-    const res = await GasService.testConnection(gasUrl);
+    const res = await GasService.testConnection(cleaned);
     setIsTesting(false);
     setTestResult(res);
 
     if (res.success) {
-      StorageService.saveGasUrl(gasUrl);
+      StorageService.saveGasUrl(cleaned);
     }
   };
 
@@ -135,11 +140,39 @@ export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
 
         {/* MENSAJE RESULTADO DE PRUEBA */}
         {testResult && (
-          <div className={`p-3 rounded-lg border text-xs flex items-center space-x-2 ${
-            testResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
-          }`}>
-            {testResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-            <span>{testResult.message}</span>
+          <div className="space-y-3">
+            <div className={`p-3.5 rounded-lg border text-xs flex items-start space-x-2.5 ${
+              testResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+            }`}>
+              {testResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+              <div>
+                <p className="font-semibold">{testResult.message}</p>
+              </div>
+            </div>
+
+            {!testResult.success && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-2 text-amber-900">
+                <p className="font-bold flex items-center space-x-1.5">
+                  <span>⚠️ Solución para el error "No se pudo obtener" en Google Apps Script:</span>
+                </p>
+                <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-sans pl-1">
+                  <li>
+                    <strong>Asegúrate de que la URL termine en <code className="bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-mono font-bold">/exec</code></strong> (Ejemplo: <span className="font-mono text-[11px] text-slate-600">https://script.google.com/macros/s/AKfycb.../exec</span>). La aplicación ya corrigió la URL automáticamente si le faltaba.
+                  </li>
+                  <li>
+                    <strong>Configuración de Permisos en Google Apps Script:</strong> Ve a tu pestaña de Apps Script, haz clic en <strong className="text-amber-900">Desplegar → Gestionar despliegues</strong> (o Nuevo Despliegue), y asegúrate de configurar:
+                    <ul className="list-disc list-inside pl-4 mt-1 space-y-0.5 font-medium">
+                      <li>Ejecutar como: <strong>Yo (tu correo)</strong></li>
+                      <li>Quién tiene acceso: <strong className="text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded">Cualquier persona (Anyone)</strong></li>
+                    </ul>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">*(Si dice "Solo yo" o "Usuarios con cuenta de Google", Google bloqueará la conexión y saldrá error).*</span>
+                  </li>
+                  <li>
+                    <strong>Nueva versión:</strong> Al hacer cualquier cambio en Apps Script, debes ir a <strong>Desplegar → Gestionar despliegues → Editar (icono lápiz) → Versión: "Nueva versión" → Desplegar</strong>.
+                  </li>
+                </ol>
+              </div>
+            )}
           </div>
         )}
 
