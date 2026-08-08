@@ -154,39 +154,12 @@ export const INITIAL_PAGOS: Pago[] = [
 export const INITIAL_USUARIOS: Usuario[] = [
   {
     usuarioId: 'USR-001',
-    nombre: 'Dra. Isabella Belleza',
-    email: 'dra.isabella@drbelleza.com',
-    passwordHash: 'admin2026',
+    nombre: 'Edgar Morales',
+    email: 'edgarmorales.asistente@gmail.com',
+    passwordHash: '12697670',
     rol: 'Administrador',
     estatus: 'Activo',
     fechaCreacion: '2026-01-01'
-  },
-  {
-    usuarioId: 'USR-002',
-    nombre: 'Lcda. María Elena Rivas',
-    email: 'maria.crm@drbelleza.com',
-    passwordHash: 'asistente2026',
-    rol: 'Asistente',
-    estatus: 'Activo',
-    fechaCreacion: '2026-01-05'
-  },
-  {
-    usuarioId: 'USR-003',
-    nombre: 'Dr. Roberto Mendoza (Anestesiólogo)',
-    email: 'dr.mendoza@drbelleza.com',
-    passwordHash: 'medico2026',
-    rol: 'Médico',
-    estatus: 'Activo',
-    fechaCreacion: '2026-01-10'
-  },
-  {
-    usuarioId: 'USR-004',
-    nombre: 'Carlos Eduardo Silva',
-    email: 'carlos.finanzas@drbelleza.com',
-    passwordHash: 'financiero2026',
-    rol: 'Financiero',
-    estatus: 'Activo',
-    fechaCreacion: '2026-01-12'
   }
 ];
 

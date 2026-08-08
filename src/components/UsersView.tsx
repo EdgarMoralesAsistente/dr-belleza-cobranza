@@ -56,6 +56,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editPassword, setEditPassword] = useState('');
   const [editRol, setEditRol] = useState<RolUsuario>('Asistente');
   const [editEstatus, setEditEstatus] = useState<'Activo' | 'Inactivo'>('Activo');
 
@@ -69,6 +70,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setEditingUser(user);
     setEditNombre(user.nombre);
     setEditEmail(user.email);
+    setEditPassword(user.passwordHash || '');
     setEditRol(user.rol);
     setEditEstatus(user.estatus);
     setShowRoleManager(false);
@@ -77,12 +79,13 @@ export const UsersView: React.FC<UsersViewProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    if (!editNombre.trim() || !editEmail.trim()) return;
+    if (!editNombre.trim() || !editEmail.trim() || !editPassword.trim()) return;
 
     const updated: Usuario = {
       ...editingUser,
       nombre: editNombre.trim(),
       email: editEmail.trim(),
+      passwordHash: editPassword.trim(),
       rol: editRol,
       estatus: editEstatus
     };
@@ -319,6 +322,17 @@ export const UsersView: React.FC<UsersViewProps> = ({
                   required
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Contraseña de Acceso *</label>
+                <input
+                  type="text"
+                  required
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
                 />
               </div>

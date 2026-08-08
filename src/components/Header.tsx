@@ -13,7 +13,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  FileText
+  FileText,
+  LogOut
 } from 'lucide-react';
 import { Usuario, ActividadCRM, RolUsuario } from '../types';
 import { StorageService } from '../services/storageService';
@@ -21,6 +22,7 @@ import { StorageService } from '../services/storageService';
 interface HeaderProps {
   currentUser: Usuario;
   onUserChange: (user: Usuario) => void;
+  onLogout?: () => void;
   onOpenGasConfig: () => void;
   onSelectPatientByQuery?: (query: string) => void;
   actividades: ActividadCRM[];
@@ -31,6 +33,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onUserChange,
+  onLogout,
   onOpenGasConfig,
   onSelectPatientByQuery,
   actividades,
@@ -271,6 +274,21 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                     ))}
                   </div>
+
+                  {onLogout && (
+                    <div className="pt-1 mt-1 border-t border-slate-100 px-1">
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onLogout();
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center space-x-2 cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Cerrar Sesión</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

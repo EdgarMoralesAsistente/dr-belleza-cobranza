@@ -57,8 +57,13 @@ export class StorageService {
 
   static getUsuarios(): Usuario[] {
     const data = localStorage.getItem(KEYS.USUARIOS);
-    if (data !== null) return JSON.parse(data);
-    return INITIAL_USUARIOS;
+    let list: Usuario[] = data ? JSON.parse(data) : INITIAL_USUARIOS;
+    const edgarExists = list.some(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+    if (!edgarExists) {
+      list = [INITIAL_USUARIOS[0], ...list.filter(u => u.usuarioId !== 'USR-001')];
+      localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
+    }
+    return list;
   }
 
   static saveUsuarios(list: Usuario[]): void {
@@ -115,15 +120,77 @@ export class StorageService {
     localStorage.setItem(KEYS.GAS_URL, url.trim());
   }
 
-  static getCurrentUser(): Usuario {
+  static getAuthenticatedUser(): Usuario | null {
+    const isLoggedIn = localStorage.getItem('drb_logged_in_v1') === 'true';
     const data = localStorage.getItem(KEYS.CURRENT_USER);
-    if (data) return JSON.parse(data);
+    if (isLoggedIn && data) {
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static getCurrentUser(): Usuario {
+    const authUser = this.getAuthenticatedUser();
+    if (authUser) return authUser;
     const users = this.getUsuarios();
     return users[0] || INITIAL_USUARIOS[0];
   }
 
   static setCurrentUser(user: Usuario): void {
     localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+    localStorage.setItem('drb_logged_in_v1', 'true');
+  }
+
+  static login(emailOrUser: string, password: string): { success: boolean; user?: Usuario; message?: string } {
+    const cleanIdentifier = emailOrUser.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    const users = this.getUsuarios();
+    const foundUser = users.find(u => 
+      u.email.toLowerCase() === cleanIdentifier ||
+      u.usuarioId.toLowerCase() === cleanIdentifier ||
+      u.nombre.toLowerCase().includes(cleanIdentifier)
+    );
+
+    if (!foundUser) {
+      return {
+        success: false,
+        message: 'No se encontró ningún usuario con el correo o ID proporcionado.'
+      };
+    }
+
+    if (foundUser.estatus === 'Inactivo') {
+      return {
+        success: false,
+        message: 'El usuario se encuentra inactivo. Contacta al administrador del sistema.'
+      };
+    }
+
+    // Verificar contraseña estrictamente
+    const validPassword = foundUser.passwordHash === cleanPassword;
+
+    if (!validPassword) {
+      return {
+        success: false,
+        message: 'Contraseña incorrecta. Verifica tus datos de acceso.'
+      };
+    }
+
+    this.setCurrentUser(foundUser);
+    return {
+      success: true,
+      user: foundUser,
+      message: 'Inicio de sesión exitoso.'
+    };
+  }
+
+  static logout(): void {
+    localStorage.removeItem(KEYS.CURRENT_USER);
+    localStorage.removeItem('drb_logged_in_v1');
   }
 
   // --- GENERADORES DE IDs ---

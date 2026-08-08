@@ -11,19 +11,20 @@ interface NewUserModalProps {
 export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) => {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('clave123');
   const availableRoles = StorageService.getUserRoles();
   const [rol, setRol] = useState<RolUsuario>(availableRoles[0] || 'Asistente');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !email.trim()) return;
+    if (!nombre.trim() || !email.trim() || !password.trim()) return;
 
     const count = Math.floor(100 + Math.random() * 900);
     const newUser: Usuario = {
       usuarioId: `USR-${count}`,
       nombre: nombre.trim(),
       email: email.trim(),
-      passwordHash: 'clave2026',
+      passwordHash: password.trim(),
       rol,
       estatus: 'Activo',
       fechaCreacion: new Date().toISOString().split('T')[0]
@@ -77,6 +78,18 @@ export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) =
               placeholder="carmen@drbelleza.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Contraseña Provisional *</label>
+            <input
+              type="text"
+              required
+              placeholder="Ej: clave123"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
             />
           </div>

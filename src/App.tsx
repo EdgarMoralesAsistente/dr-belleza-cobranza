@@ -18,12 +18,13 @@ import { NewActivityModal } from './components/NewActivityModal';
 import { NewFinancingPlanModal } from './components/NewFinancingPlanModal';
 import { NewUserModal } from './components/NewUserModal';
 import { ExecutivePresentationModal } from './components/ExecutivePresentationModal';
+import { LoginView } from './components/LoginView';
 
 import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia } from './types';
 import { StorageService } from './services/storageService';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<Usuario>(StorageService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(StorageService.getAuthenticatedUser());
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -61,6 +62,18 @@ export default function App() {
   useEffect(() => {
     refreshData();
   }, []);
+
+  // Handler de inicio de sesión exitoso
+  const handleLoginSuccess = (user: Usuario) => {
+    setCurrentUser(user);
+    refreshData();
+  };
+
+  // Handler de cierre de sesión
+  const handleLogout = () => {
+    StorageService.logout();
+    setCurrentUser(null);
+  };
 
   // Handler cambio de perfil RBAC
   const handleUserChange = (user: Usuario) => {
@@ -139,6 +152,11 @@ export default function App() {
     a => a.alarma && a.estado === 'Pendiente' && a.fechaProgramada <= todayStr
   ).length;
 
+  // Si no hay ningún usuario autenticado, mostrar la pantalla de Login
+  if (!currentUser) {
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800 antialiased selection:bg-teal-500 selection:text-white">
       
@@ -146,6 +164,7 @@ export default function App() {
       <Header
         currentUser={currentUser}
         onUserChange={handleUserChange}
+        onLogout={handleLogout}
         onOpenGasConfig={() => setActiveTab('google-sheets')}
         onSelectPatientByQuery={handleSelectPatientByQuery}
         actividades={actividades}
