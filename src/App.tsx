@@ -199,7 +199,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800 antialiased selection:bg-teal-500 selection:text-white">
+    <div className="h-screen min-h-[100dvh] bg-slate-100 flex flex-col font-sans text-slate-800 antialiased selection:bg-teal-500 selection:text-white overflow-hidden">
       
       {/* HEADER PRINCIPAL */}
       <Header
@@ -214,7 +214,7 @@ export default function App() {
         onOpenPresentationModal={() => setShowPresentationModal(true)}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden w-full relative">
         
         {/* SIDEBAR NAVEGACIÓN */}
         <Sidebar
@@ -236,7 +236,7 @@ export default function App() {
         />
 
         {/* CONTENIDO PRINCIPAL POR PESTAÑA */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 w-full min-w-0 overflow-y-auto">
           {activeTab === 'dashboard' && (
             <DashboardView
               pacientes={pacientes}

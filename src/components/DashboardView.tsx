@@ -51,34 +51,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToTab
 }) => {
   // CÁLCULO DE KPIS
-  const totalPacientes = pacientes.length;
+  const totalPacientes = (pacientes || []).length;
 
   // Total recaudado este mes (Ej: Febrero / Agosto 2026)
-  const totalRecaudadoMes = pagos.reduce((sum, p) => sum + (p.abono || 0), 0);
+  const totalRecaudadoMes = (pagos || []).reduce((sum, p) => sum + (p?.abono || 0), 0);
 
   // Total Saldo por Cobrar
-  const totalSaldoPendiente = financiamientos.reduce((sum, f) => sum + (f.saldoPendiente || 0), 0);
+  const totalSaldoPendiente = (financiamientos || []).reduce((sum, f) => sum + (f?.saldoPendiente || 0), 0);
 
   // Planes en Mora
-  const planesEnMora = financiamientos.filter(f => f.estadoFinanciero === 'En Mora');
+  const planesEnMora = (financiamientos || []).filter(f => f && f.estadoFinanciero === 'En Mora');
 
   // Próximas Cirugías (Fecha estimada futura)
-  const proximasCirugias = [...financiamientos]
-    .sort((a, b) => a.fechaEstimadaCirugia.localeCompare(b.fechaEstimadaCirugia))
+  const proximasCirugias = [...(financiamientos || [])]
+    .filter(f => f && f.fechaEstimadaCirugia)
+    .sort((a, b) => (a.fechaEstimadaCirugia || '').localeCompare(b.fechaEstimadaCirugia || ''))
     .slice(0, 5);
 
   // DATOS PARA GRÁFICOS RECHARTS
   // 1. Recaudación vs Saldo por Procedimiento
-  const chartDataProcedimientos = financiamientos.map(f => ({
-    name: f.procedimiento.length > 20 ? f.procedimiento.substring(0, 18) + '...' : f.procedimiento,
-    Abonado: f.montoAbonado,
-    Pendiente: f.saldoPendiente
-  }));
+  const chartDataProcedimientos = (financiamientos || []).map(f => {
+    const proc = f?.procedimiento || 'Sin especificación';
+    return {
+      name: proc.length > 18 ? proc.substring(0, 16) + '...' : proc,
+      Abonado: f?.montoAbonado || 0,
+      Pendiente: f?.saldoPendiente || 0
+    };
+  });
 
   // 2. Métodos de Pago Breakdown
   const metodosCount: { [key: string]: number } = {};
-  pagos.forEach(p => {
-    metodosCount[p.metodoDePago] = (metodosCount[p.metodoDePago] || 0) + (p.abono || 0);
+  (pagos || []).forEach(p => {
+    if (p && p.metodoDePago) {
+      metodosCount[p.metodoDePago] = (metodosCount[p.metodoDePago] || 0) + (p.abono || 0);
+    }
   });
 
   const pieDataMetodos = Object.keys(metodosCount).map(key => ({
@@ -90,7 +96,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Actividades del día o urgentes
   const todayStr = new Date().toISOString().split('T')[0];
-  const actividadesUrgentes = actividades.filter(a => a.estado === 'Pendiente');
+  const actividadesUrgentes = (actividades || []).filter(a => a && a.estado === 'Pendiente');
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
