@@ -110,6 +110,7 @@ export const KANBAN_COLUMNS: ColumnConfig[] = [
 ];
 
 export function getPatientColumnId(paciente: Paciente): string {
+  if (!paciente) return 'por_contactar';
   const status = (paciente.contactada || '').toLowerCase();
   if (
     status.includes('quirofano') ||
@@ -175,14 +176,15 @@ export const CrmKanbanView: React.FC<CrmKanbanViewProps> = ({
 
   // Filtrado de pacientes
   const filteredPatients = pacientes.filter(p => {
-    const q = searchQuery.toLowerCase();
+    if (!p) return false;
+    const q = (searchQuery || '').toLowerCase();
     const matchesSearch =
       !searchQuery ||
-      p.nombre.toLowerCase().includes(q) ||
-      p.cedula.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q) ||
-      p.procedimiento.toLowerCase().includes(q) ||
-      p.promocion.toLowerCase().includes(q);
+      (p.nombre || '').toLowerCase().includes(q) ||
+      (p.cedula || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q) ||
+      (p.procedimiento || '').toLowerCase().includes(q) ||
+      (p.promocion || '').toLowerCase().includes(q);
 
     const matchesProcedure =
       selectedProcedure === 'Todos' || p.procedimiento === selectedProcedure;
@@ -360,7 +362,7 @@ export const CrmKanbanView: React.FC<CrmKanbanViewProps> = ({
                     // Datos financieros del paciente
                     const finPlan = financiamientos.find(f => f.pacienteId === paciente.id);
                     const patientPagos = pagos.filter(
-                      p => p.id === paciente.id || p.id === paciente.cedula || p.nombre.toLowerCase() === paciente.nombre.toLowerCase()
+                      p => p && paciente && (p.id === paciente.id || p.id === paciente.cedula || ((p.nombre || '').toLowerCase() === (paciente.nombre || '').toLowerCase() && p.nombre))
                     );
                     const totalAbonado = patientPagos.reduce((sum, p) => sum + (p.abono || 0), 0);
 

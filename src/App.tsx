@@ -63,6 +63,40 @@ export default function App() {
 
   useEffect(() => {
     refreshData();
+
+    // Auto-sincronización inicial desde Google Sheets si existe URL configurada
+    const gasUrl = StorageService.getGasUrl();
+    if (gasUrl) {
+      StorageService.syncFromGas()
+        .then((res) => {
+          if (res.success) {
+            refreshData();
+          }
+        })
+        .catch(console.error);
+    }
+
+    // Escuchar eventos de cambios en LocalStorage o enfoque de ventana para mantener sincro entre tabs/dispositivos
+    const handleStorageChange = () => {
+      refreshData();
+    };
+
+    const handleFocus = () => {
+      refreshData();
+      if (gasUrl) {
+        StorageService.syncFromGas().then((res) => {
+          if (res.success) refreshData();
+        }).catch(console.error);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Handler de inicio de sesión exitoso
@@ -85,9 +119,14 @@ export default function App() {
 
   // Handler búsqueda rápida de paciente por Query
   const handleSelectPatientByQuery = (query: string) => {
+    if (!query) return;
     const q = query.toLowerCase();
     const found = pacientes.find(
-      p => p.id.toLowerCase() === q || p.cedula.toLowerCase() === q || p.nombre.toLowerCase().includes(q)
+      p => p && (
+        (p.id && p.id.toLowerCase() === q) ||
+        (p.cedula && p.cedula.toLowerCase() === q) ||
+        (p.nombre && p.nombre.toLowerCase().includes(q))
+      )
     );
 
     if (found) {
@@ -317,7 +356,10 @@ export default function App() {
       {selectedReceiptForPrint && (
         <ReceiptModal
           pago={selectedReceiptForPrint}
-          paciente={pacientes.find(p => p.id === selectedReceiptForPrint.id || p.nombre.toLowerCase() === selectedReceiptForPrint.nombre.toLowerCase())}
+          paciente={pacientes.find(p => p && selectedReceiptForPrint && (
+            p.id === selectedReceiptForPrint.id ||
+            ((p.nombre || '').toLowerCase() === (selectedReceiptForPrint.nombre || '').toLowerCase() && p.nombre)
+          ))}
           financiamiento={financiamientos.find(f => f.pacienteId === selectedReceiptForPrint.id)}
           onClose={() => setSelectedReceiptForPrint(null)}
         />

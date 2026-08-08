@@ -100,7 +100,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     const clean = newRoleName.trim();
     if (!clean) return;
 
-    if (availableRoles.some(r => r.toLowerCase() === clean.toLowerCase())) {
+    if (availableRoles.some(r => r && (r || '').toLowerCase() === clean.toLowerCase())) {
       alert(`El rol "${clean}" ya existe en el sistema.`);
       return;
     }
@@ -121,7 +121,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     const clean = editingRoleText.trim();
     if (!clean) return;
 
-    if (clean !== oldName && availableRoles.some(r => r.toLowerCase() === clean.toLowerCase())) {
+    if (clean !== oldName && availableRoles.some(r => r && (r || '').toLowerCase() === clean.toLowerCase())) {
       alert(`Ya existe otro rol con el nombre "${clean}".`);
       return;
     }

@@ -28,11 +28,13 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [selectedMethod, setSelectedMethod] = useState<string>('Todos');
 
   const filteredPagos = pagos.filter(p => {
+    if (!p) return false;
+    const term = (searchTerm || '').toLowerCase();
     const matchesSearch =
-      p.cod.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
+      (p.cod || '').toLowerCase().includes(term) ||
+      (p.nombre || '').toLowerCase().includes(term) ||
+      (p.id || '').toLowerCase().includes(term) ||
+      (p.referencia || '').toLowerCase().includes(term);
 
     const matchesMethod = selectedMethod === 'Todos' || p.metodoDePago === selectedMethod;
 

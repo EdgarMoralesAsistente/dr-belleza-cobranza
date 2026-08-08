@@ -49,7 +49,7 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
 
   // Filtrar pagos de este paciente
   const patientPagos = pagos.filter(
-    p => p.id === paciente.id || p.id === paciente.cedula || p.nombre.toLowerCase() === paciente.nombre.toLowerCase()
+    p => p && paciente && (p.id === paciente.id || p.id === paciente.cedula || ((p.nombre || '').toLowerCase() === (paciente.nombre || '').toLowerCase() && p.nombre))
   );
 
   // Filtrar actividades CRM

@@ -30,11 +30,13 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
 
   // Filtrado de pacientes por texto o género
   const filteredPatients = pacientes.filter(p => {
+    if (!p) return false;
+    const term = (searchTerm || '').toLowerCase();
     const matchesSearch =
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.cedula.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.procedimiento.toLowerCase().includes(searchTerm.toLowerCase());
+      (p.nombre || '').toLowerCase().includes(term) ||
+      (p.cedula || '').toLowerCase().includes(term) ||
+      (p.id || '').toLowerCase().includes(term) ||
+      (p.procedimiento || '').toLowerCase().includes(term);
 
     const matchesGender = selectedGender === 'Todos' || p.genero === selectedGender;
 

@@ -107,7 +107,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   useEffect(() => {
     if (activePatient) {
       // Buscar match con el procedimiento del paciente si existe
-      const procMatch = catalog.find(p => p.nombre.toLowerCase().includes(activePatient.procedimiento.toLowerCase()));
+      const procMatch = catalog.find(p => p && p.nombre && activePatient.procedimiento && p.nombre.toLowerCase().includes(activePatient.procedimiento.toLowerCase()));
       if (procMatch) {
         setSelectedProcIds([procMatch.id]);
       }

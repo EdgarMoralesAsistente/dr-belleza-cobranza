@@ -43,6 +43,7 @@ export class StorageService {
 
   static savePacientes(list: Paciente[]): void {
     localStorage.setItem(KEYS.PACIENTES, JSON.stringify(list));
+    window.dispatchEvent(new Event('storage'));
   }
 
   static getPagos(): Pago[] {
@@ -53,6 +54,7 @@ export class StorageService {
 
   static savePagos(list: Pago[]): void {
     localStorage.setItem(KEYS.PAGOS, JSON.stringify(list));
+    window.dispatchEvent(new Event('storage'));
   }
 
   static getUsuarios(): Usuario[] {
@@ -67,9 +69,9 @@ export class StorageService {
       'carlos.finanzas@drbelleza.com'
     ];
     const initialCount = list.length;
-    list = list.filter(u => !oldDemoEmails.includes(u.email.toLowerCase()));
+    list = list.filter(u => u && u.email && !oldDemoEmails.includes(u.email.toLowerCase()));
 
-    const edgarExists = list.some(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+    const edgarExists = list.some(u => u && u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
     if (!edgarExists) {
       list = [INITIAL_USUARIOS[0], ...list];
     }
@@ -82,6 +84,7 @@ export class StorageService {
 
   static saveUsuarios(list: Usuario[]): void {
     localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
+    window.dispatchEvent(new Event('storage'));
   }
 
   static getUserRoles(): string[] {
@@ -99,6 +102,7 @@ export class StorageService {
 
   static saveUserRoles(roles: string[]): void {
     localStorage.setItem(KEYS.USER_ROLES, JSON.stringify(roles));
+    window.dispatchEvent(new Event('storage'));
   }
 
   static getActividades(): ActividadCRM[] {
@@ -109,6 +113,7 @@ export class StorageService {
 
   static saveActividades(list: ActividadCRM[]): void {
     localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify(list));
+    window.dispatchEvent(new Event('storage'));
   }
 
   static getFinanciamientos(): FinanciamientoCirugia[] {
@@ -119,6 +124,7 @@ export class StorageService {
 
   static saveFinanciamientos(list: FinanciamientoCirugia[]): void {
     localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify(list));
+    window.dispatchEvent(new Event('storage'));
   }
 
   static getGasUrl(): string {
@@ -164,11 +170,11 @@ export class StorageService {
     const cleanPassword = password.trim();
 
     const users = this.getUsuarios();
-    const foundUser = users.find(u => 
-      u.email.toLowerCase() === cleanIdentifier ||
-      u.usuarioId.toLowerCase() === cleanIdentifier ||
-      u.nombre.toLowerCase().includes(cleanIdentifier)
-    );
+    const foundUser = users.find(u => u && (
+      (u.email && u.email.toLowerCase() === cleanIdentifier) ||
+      (u.usuarioId && u.usuarioId.toLowerCase() === cleanIdentifier) ||
+      (u.nombre && u.nombre.toLowerCase().includes(cleanIdentifier))
+    ));
 
     if (!foundUser) {
       return {
@@ -360,19 +366,19 @@ export class StorageService {
     try {
       const data = await GasService.sendGet(gasUrl, 'getAllData');
       if (data && data.success) {
-        if (data.pacientes && Array.isArray(data.pacientes) && data.pacientes.length > 0) {
+        if (data.pacientes && Array.isArray(data.pacientes)) {
           this.savePacientes(data.pacientes);
         }
-        if (data.pagos && Array.isArray(data.pagos) && data.pagos.length > 0) {
+        if (data.pagos && Array.isArray(data.pagos)) {
           this.savePagos(data.pagos);
         }
-        if (data.usuarios && Array.isArray(data.usuarios) && data.usuarios.length > 0) {
+        if (data.usuarios && Array.isArray(data.usuarios)) {
           this.saveUsuarios(data.usuarios);
         }
-        if (data.actividades && Array.isArray(data.actividades) && data.actividades.length > 0) {
+        if (data.actividades && Array.isArray(data.actividades)) {
           this.saveActividades(data.actividades);
         }
-        if (data.financiamientos && Array.isArray(data.financiamientos) && data.financiamientos.length > 0) {
+        if (data.financiamientos && Array.isArray(data.financiamientos)) {
           this.saveFinanciamientos(data.financiamientos);
         }
 

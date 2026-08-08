@@ -33,11 +33,12 @@ export const NewActivityModal: React.FC<NewActivityModalProps> = ({
   const [alarma, setAlarma] = useState(true);
 
   const filteredPacientes = pacientes.filter(p => {
+    if (!p) return false;
     if (!patientSearchQuery.trim()) return true;
     const q = patientSearchQuery.toLowerCase();
     return (
-      p.nombre.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q) ||
+      (p.nombre || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q) ||
       (p.cedula && p.cedula.toLowerCase().includes(q)) ||
       (p.telefono && p.telefono.toLowerCase().includes(q))
     );

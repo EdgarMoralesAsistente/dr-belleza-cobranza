@@ -38,14 +38,16 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
 
   // Filtrado de planes
   const filteredPlans = financiamientos.filter(f => {
-    const paciente = pacientes.find(p => p.id === f.pacienteId);
-    const pacienteNombre = paciente ? paciente.nombre.toLowerCase() : '';
+    if (!f) return false;
+    const paciente = pacientes.find(p => p && p.id === f.pacienteId);
+    const pacienteNombre = (paciente?.nombre || '').toLowerCase();
+    const term = (searchTerm || '').toLowerCase();
 
     const matchesSearch =
-      f.procedimiento.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.planId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.pacienteId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pacienteNombre.includes(searchTerm.toLowerCase());
+      (f.procedimiento || '').toLowerCase().includes(term) ||
+      (f.planId || '').toLowerCase().includes(term) ||
+      (f.pacienteId || '').toLowerCase().includes(term) ||
+      pacienteNombre.includes(term);
 
     const matchesStatus = selectedStatus === 'Todos' || f.estadoFinanciero === selectedStatus;
 
