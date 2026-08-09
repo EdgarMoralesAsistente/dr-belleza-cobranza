@@ -100,12 +100,14 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
   const toggleProcedure = (procId: string) => {
     if (selectedProcIds.includes(procId)) {
-      if (selectedProcIds.length > 1) {
-        setSelectedProcIds(selectedProcIds.filter(id => id !== procId));
-      }
+      setSelectedProcIds(selectedProcIds.filter(id => id !== procId));
     } else {
       setSelectedProcIds([...selectedProcIds, procId]);
     }
+  };
+
+  const handleProcedurePriceChange = (procId: string, newPrice: number) => {
+    setCatalog(prev => prev.map(p => p.id === procId ? { ...p, precioDefault: newPrice } : p));
   };
 
   const handleSelectTipoPago = (type: 'Contado' | 'Financiamiento') => {
@@ -795,26 +797,52 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
                   {catalog.map(proc => {
                     const isSelected = selectedProcIds.includes(proc.id);
                     return (
                       <div
                         key={proc.id}
                         onClick={() => toggleProcedure(proc.id)}
-                        className={`p-2 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between gap-2 select-none ${
                           isSelected
-                            ? 'border-teal-500 bg-white font-bold text-teal-950'
-                            : 'border-slate-200 bg-white/60 text-slate-700'
+                            ? 'border-teal-500 bg-teal-50/50 shadow-2xs font-bold text-teal-950 ring-1 ring-teal-500/30'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
                         }`}
                       >
-                        <span className="truncate text-[11px]">{proc.nombre}</span>
-                        <span className="text-[11px] font-bold text-teal-700 shrink-0 ml-1">
-                          ${proc.precioDefault.toLocaleString()}
-                        </span>
+                        <div className="flex items-center space-x-2 min-w-0 flex-1">
+                          <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+                            isSelected ? 'bg-teal-600 text-white' : 'border border-slate-300 bg-white'
+                          }`}>
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span className="truncate text-xs">{proc.nombre}</span>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-teal-700' : 'text-slate-600'}`}>
+                            ${proc.precioDefault.toLocaleString()} USD
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
+                </div>
+
+                {/* RESUMEN AUTOMÁTICO DE SUMA DE COMBO QUIRÚRGICO */}
+                <div className="bg-teal-900 text-white p-3 rounded-xl flex items-center justify-between text-xs mt-2 shadow-2xs">
+                  <div className="min-w-0 pr-2">
+                    <span className="text-[10px] text-teal-300 font-bold uppercase tracking-wider block">
+                      Combo Seleccionado ({selectedProcedures.length} {selectedProcedures.length === 1 ? 'cirugía' : 'cirugías'}):
+                    </span>
+                    <p className="font-semibold text-teal-100 truncate text-[11px]">
+                      {comboNombreConsolidado || 'Ningún procedimiento seleccionado'}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-teal-300 font-bold uppercase tracking-wider block">Suma Subtotal</span>
+                    <strong className="text-base text-teal-200 font-extrabold">${subtotalCost.toLocaleString()} USD</strong>
+                  </div>
                 </div>
               </div>
 
