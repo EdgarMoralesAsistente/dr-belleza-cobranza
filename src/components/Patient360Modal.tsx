@@ -76,18 +76,18 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pr-12">
             <div className="flex items-center space-x-4">
-              <div className="w-14 h-14 rounded-full bg-teal-600 flex items-center justify-center text-white text-xl font-bold border border-white/20">
-                {paciente.nombre.substring(0, 2).toUpperCase()}
+              <div className="w-14 h-14 rounded-full bg-teal-600 flex items-center justify-center text-white text-xl font-bold border border-white/20 shrink-0">
+                {(paciente?.nombre || 'PA').substring(0, 2).toUpperCase()}
               </div>
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full">
-                    {paciente.id}
+                    {paciente?.id || ''}
                   </span>
-                  <span className="text-xs text-slate-300">Cédula: <strong>{paciente.cedula}</strong></span>
+                  <span className="text-xs text-slate-300">Cédula: <strong>{paciente?.cedula || 'N/A'}</strong></span>
                 </div>
-                <h2 className="text-2xl font-serif italic font-bold tracking-tight text-white mt-1">{paciente.nombre}</h2>
-                <p className="text-xs text-teal-300 font-medium">{paciente.procedimiento}</p>
+                <h2 className="text-2xl font-serif italic font-bold tracking-tight text-white mt-1">{paciente?.nombre || 'Paciente sin nombre'}</h2>
+                <p className="text-xs text-teal-300 font-medium">{paciente?.procedimiento || 'Procedimiento no especificado'}</p>
               </div>
             </div>
 
@@ -317,37 +317,46 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                       <div className="bg-slate-50 p-3 rounded-lg">
                         <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Costo Total</span>
-                        <div className="text-base font-bold text-slate-900">${patientFin.costoTotalCirugia.toLocaleString()} USD</div>
+                        <div className="text-base font-bold text-slate-900">${(patientFin.costoTotalCirugia || 0).toLocaleString()} USD</div>
                       </div>
 
                       <div className="bg-emerald-50/60 p-3 rounded-lg border border-emerald-100">
                         <span className="text-[9px] text-emerald-700 uppercase font-bold tracking-wider">Monto Abonado</span>
-                        <div className="text-base font-bold text-emerald-800">${patientFin.montoAbonado.toLocaleString()} USD</div>
+                        <div className="text-base font-bold text-emerald-800">${(patientFin.montoAbonado || 0).toLocaleString()} USD</div>
                       </div>
 
                       <div className="bg-amber-50/60 p-3 rounded-lg border border-amber-100">
                         <span className="text-[9px] text-amber-700 uppercase font-bold tracking-wider">Saldo Pendiente</span>
-                        <div className="text-base font-bold text-amber-900">${patientFin.saldoPendiente.toLocaleString()} USD</div>
+                        <div className="text-base font-bold text-amber-900">${(patientFin.saldoPendiente || 0).toLocaleString()} USD</div>
                       </div>
 
                       <div className="bg-slate-50 p-3 rounded-lg">
                         <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Fecha Est. Operación</span>
-                        <div className="text-xs font-bold text-slate-700 mt-1">{patientFin.fechaEstimadaCirugia}</div>
+                        <div className="text-xs font-bold text-slate-700 mt-1">{patientFin.fechaEstimadaCirugia || 'Por definir'}</div>
                       </div>
                     </div>
 
                     {/* BARRA DE PROGRESO DE PAGOS */}
                     <div>
-                      <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1">
-                        <span>Progreso de Financiamiento ({Math.round((patientFin.montoAbonado / patientFin.costoTotalCirugia) * 100)}%)</span>
-                        <span>Cuotas: {patientFin.cuotasTotales}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div
-                          className="bg-teal-600 h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, Math.round((patientFin.montoAbonado / patientFin.costoTotalCirugia) * 100))}%` }}
-                        />
-                      </div>
+                      {(() => {
+                        const total = patientFin.costoTotalCirugia || 0;
+                        const abonado = patientFin.montoAbonado || 0;
+                        const pct = total > 0 ? Math.min(100, Math.round((abonado / total) * 100)) : 0;
+                        return (
+                          <>
+                            <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1">
+                              <span>Progreso de Financiamiento ({pct}%)</span>
+                              <span>Cuotas: {patientFin.cuotasTotales || 1}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                              <div
+                                className="bg-teal-600 h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 

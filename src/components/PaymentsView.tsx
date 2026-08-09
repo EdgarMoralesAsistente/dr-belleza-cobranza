@@ -101,8 +101,54 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
         </div>
       </div>
 
-      {/* TABLA DE RECIBOS Y PAGOS */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+      {/* LISTA DE RECIBOS Y PAGOS: VISTA MÓVIL EN TARJETAS + TABLA EN ESCRITORIO */}
+      
+      {/* Vista Móvil (Tarjetas) */}
+      <div className="block md:hidden space-y-3">
+        {filteredPagos.length === 0 ? (
+          <div className="bg-white p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
+            No hay transacciones de pago registradas.
+          </div>
+        ) : (
+          filteredPagos.map((p) => (
+            <div key={p.cod} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                    {p.cod}
+                  </span>
+                  <h3 className="text-sm font-bold text-slate-900 mt-1">{p.nombre || 'Paciente'}</h3>
+                  <span className="text-xs text-slate-500">ID: {p.id} — {p.fecha}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-extrabold text-emerald-700 block">
+                    +${(p.abono || 0).toLocaleString()} USD
+                  </span>
+                  <span className="text-[10px] font-semibold bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md">
+                    {p.metodoDePago}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <div className="font-semibold text-slate-800">{p.descripcion}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">Ref: {p.referencia || 'S/N'}</div>
+              </div>
+
+              <button
+                onClick={() => onPrintReceipt(p)}
+                className="w-full py-2 bg-slate-100 hover:bg-teal-600 hover:text-white text-slate-800 font-semibold text-xs rounded-lg transition-all flex items-center justify-center space-x-2 border border-slate-200 cursor-pointer active:scale-98"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Ver / Imprimir Recibo</span>
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Vista Escritorio (Tabla) */}
+      <div className="hidden md:block bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -143,7 +189,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                       <div className="text-[11px] font-mono text-slate-400">Ref: {p.referencia || 'S/N'}</div>
                     </td>
                     <td className="py-3.5 px-6 font-bold text-emerald-700 text-sm">
-                      +${p.abono.toLocaleString()} USD
+                      +${(p.abono || 0).toLocaleString()} USD
                     </td>
                     <td className="py-3.5 px-6 text-right">
                       <button

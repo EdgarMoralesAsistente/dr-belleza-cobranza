@@ -91,8 +91,58 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
         </div>
       </div>
 
-      {/* TABLA DE PACIENTES */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+      {/* LISTA DE PACIENTES: VISTA MÓVIL EN TARJETAS + TABLA EN ESCRITORIO */}
+      
+      {/* Vista Móvil (Tarjetas) */}
+      <div className="block md:hidden space-y-3">
+        {filteredPatients.length === 0 ? (
+          <div className="bg-white p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
+            No se encontraron pacientes que coincidan con la búsqueda.
+          </div>
+        ) : (
+          filteredPatients.map((p) => (
+            <div key={p.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-100">
+                    {p.id}
+                  </span>
+                  <h3 className="text-sm font-bold text-slate-900 mt-1">{p.nombre || 'Paciente sin nombre'}</h3>
+                  <span className="text-xs text-slate-500">Cédula: {p.cedula || 'N/A'}</span>
+                </div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-600 shrink-0">
+                  {p.contactada || 'Activo'}
+                </span>
+              </div>
+
+              <div className="text-xs space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <div className="font-semibold text-teal-800">{p.procedimiento || 'Consulta General'}</div>
+                <div className="flex items-center text-slate-600 pt-1">
+                  <Phone className="w-3.5 h-3.5 text-teal-600 mr-1.5 shrink-0" />
+                  <span>{p.telefono || 'Sin teléfono'}</span>
+                </div>
+                {p.correo && (
+                  <div className="flex items-center text-slate-500">
+                    <Mail className="w-3.5 h-3.5 text-teal-600 mr-1.5 shrink-0" />
+                    <span className="truncate">{p.correo}</span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => onSelectPatient(p.id)}
+                className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg transition-all flex items-center justify-center space-x-2 shadow-2xs cursor-pointer active:scale-98"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Ver Ficha Médica 360°</span>
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Vista Escritorio (Tabla) */}
+      <div className="hidden md:block bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

@@ -33,33 +33,219 @@ const KEYS = {
 
 const DEFAULT_USER_ROLES = ['Administrador', 'Asistente', 'Financiero', 'Médico'];
 
+export function normalizePaciente(p: any): Paciente {
+  if (!p || typeof p !== 'object') {
+    return {
+      id: `PAC-${Date.now()}`,
+      cedula: 'V-00000000',
+      nombre: 'Paciente sin nombre',
+      genero: 'Femenino',
+      correo: 'paciente@gmail.com',
+      telefono: '0412-0000000',
+      contactada: 'Por Contactar',
+      fecha: new Date().toISOString().split('T')[0],
+      promocion: 'Directo',
+      procedimiento: 'Consulta General',
+      direccion: 'Sin dirección'
+    };
+  }
+  return {
+    id: String(p.id || p.ID || p.Id || `PAC-${Date.now()}`),
+    cedula: String(p.cedula || p.CEDULA || p.Cedula || 'V-00000000'),
+    nombre: String(p.nombre || p.NOMBRE || p.Nombre || 'Paciente sin nombre'),
+    genero: (p.genero || p.GENERO || p.Genero || 'Femenino') as any,
+    correo: String(p.correo || p.CORREO || p.Correo || 'paciente@gmail.com'),
+    telefono: String(p.telefono || p.TELEFONO || p.Telefono || '0412-0000000'),
+    contactada: String(p.contactada || p.CONTACTADA || p.Contactada || 'Por Contactar'),
+    fecha: String(p.fecha || p.FECHA || p.Fecha || new Date().toISOString().split('T')[0]),
+    promocion: String(p.promocion || p.PROMOCION || p.Promocion || 'Directo'),
+    procedimiento: String(p.procedimiento || p.PROCEDIMIENTO || p.Procedimiento || 'Consulta General'),
+    direccion: String(p.direccion || p.DIRECCION || p.Direccion || 'Sin dirección')
+  };
+}
+
+export function normalizeUsuario(u: any): Usuario {
+  if (!u || typeof u !== 'object') {
+    return INITIAL_USUARIOS[0];
+  }
+  return {
+    usuarioId: String(u.usuarioId || u.Usuario_ID || u.usuario_id || u.USUARIO_ID || u.id || `USR-${Date.now()}`),
+    nombre: String(u.nombre || u.Nombre || u.NOMBRE || 'Usuario'),
+    email: String(u.email || u.Email || u.EMAIL || 'usuario@drbelleza.com'),
+    passwordHash: String(u.passwordHash || u.Password_Hash || u.password_hash || u.password || '123456'),
+    rol: (u.rol || u.Rol || u.ROL || 'Asistente') as any,
+    estatus: (u.estatus || u.Estatus || u.ESTATUS || 'Activo') as any,
+    fechaCreacion: String(u.fechaCreacion || u.Fecha_Creacion || u.fecha_creacion || new Date().toISOString().split('T')[0]),
+    fotoUrl: u.fotoUrl || u.Foto_Url || u.foto_url || undefined
+  };
+}
+
+export function normalizePago(p: any): Pago {
+  if (!p || typeof p !== 'object') {
+    return {
+      fecha: new Date().toISOString().split('T')[0],
+      cod: `REC-${Date.now()}`,
+      id: 'PAC-000',
+      nombre: 'Paciente',
+      descripcion: 'Abono',
+      metodoDePago: 'Efectivo USD',
+      referencia: 'N/A',
+      cargo: 0,
+      abono: 0,
+      diasVcto: 0,
+      estatus: 'Procesado',
+      mesProximaAccion: '',
+      fechaProximaAccion: '',
+      proximaAccion: ''
+    };
+  }
+  return {
+    fecha: String(p.fecha || p.FECHA || p.Fecha || new Date().toISOString().split('T')[0]),
+    cod: String(p.cod || p.COD || p.Cod || `REC-${Date.now()}`),
+    id: String(p.id || p.ID || p.Id || 'PAC-000'),
+    nombre: String(p.nombre || p.NOMBRE || p.Nombre || 'Paciente'),
+    descripcion: String(p.descripcion || p.DESCRIPCION || p.Descripcion || 'Abono'),
+    metodoDePago: String(p.metodoDePago || p.METODO_DE_PAGO || p.Metodo_De_Pago || p.metodo_de_pago || 'Efectivo USD'),
+    referencia: String(p.referencia || p.REFERENCIA || p.Referencia || 'N/A'),
+    cargo: Number(p.cargo || p.CARGO || p.Cargo || 0),
+    abono: Number(p.abono || p.ABONO || p.Abono || 0),
+    diasVcto: Number(p.diasVcto || p.DIAS_VCTO || p.dias_vcto || 0),
+    estatus: String(p.estatus || p.Estatus || p.ESTATUS || 'Procesado'),
+    mesProximaAccion: String(p.mesProximaAccion || p.Mes_Proxima_Accion || p.mes_proxima_accion || ''),
+    fechaProximaAccion: String(p.fechaProximaAccion || p.Fecha_Proxima_Accion || p.fecha_proxima_accion || ''),
+    proximaAccion: String(p.proximaAccion || p.Proxima_Accion || p.proxima_accion || '')
+  };
+}
+
+export function normalizeActividad(a: any): ActividadCRM {
+  if (!a || typeof a !== 'object') {
+    return {
+      actividadId: `ACT-${Date.now()}`,
+      pacienteId: 'PAC-000',
+      tipoActividad: 'Seguimiento',
+      descripcion: '',
+      fechaProgramada: new Date().toISOString().split('T')[0],
+      hora: '10:00 AM',
+      estado: 'Pendiente',
+      alarma: false,
+      responsableId: 'USR-001'
+    };
+  }
+  return {
+    actividadId: String(a.actividadId || a.Actividad_ID || a.actividad_id || `ACT-${Date.now()}`),
+    pacienteId: String(a.pacienteId || a.Paciente_ID || a.paciente_id || 'PAC-000'),
+    tipoActividad: String(a.tipoActividad || a.Tipo_Actividad || a.tipo_actividad || 'Seguimiento'),
+    descripcion: String(a.descripcion || a.Descripcion || a.DESCRIPCION || ''),
+    fechaProgramada: String(a.fechaProgramada || a.Fecha_Programada || a.fecha_programada || new Date().toISOString().split('T')[0]),
+    hora: String(a.hora || a.Hora || a.HORA || '10:00 AM'),
+    estado: (a.estado || a.Estado || a.ESTADO || 'Pendiente') as any,
+    alarma: Boolean(a.alarma === true || a.alarma === 'Sí' || a.Alarma === 'Sí' || a.alarma === 'true' || a.Alarma === true),
+    responsableId: String(a.responsableId || a.Responsable_ID || a.responsable_id || 'USR-001')
+  };
+}
+
+export function normalizeFinanciamiento(f: any): FinanciamientoCirugia {
+  if (!f || typeof f !== 'object') {
+    return {
+      planId: `FIN-${Date.now()}`,
+      pacienteId: 'PAC-000',
+      procedimiento: 'Cirugía',
+      tipoPago: 'Financiamiento',
+      planOpcionId: 'plan_12m',
+      costoSubtotal: 0,
+      cuponCodigo: 'NINGUNO',
+      descuentoMonto: 0,
+      costoTotalCirugia: 0,
+      cuotasTotales: 1,
+      montoAbonado: 0,
+      saldoPendiente: 0,
+      montoCuotaMensual: 0,
+      estadoFinanciero: 'Al día',
+      fechaInicio: new Date().toISOString().split('T')[0],
+      fechaEstimadaCirugia: new Date().toISOString().split('T')[0]
+    };
+  }
+  return {
+    planId: String(f.planId || f.Plan_ID || f.plan_id || `FIN-${Date.now()}`),
+    pacienteId: String(f.pacienteId || f.Paciente_ID || f.paciente_id || 'PAC-000'),
+    procedimiento: String(f.procedimiento || f.Procedimiento || f.PROCEDIMIENTO || 'Cirugía'),
+    comboProcedimientos: Array.isArray(f.comboProcedimientos) ? f.comboProcedimientos : [],
+    tipoPago: f.tipoPago || 'Financiamiento',
+    planOpcionId: f.planOpcionId || 'plan_12m',
+    costoSubtotal: Number(f.costoSubtotal || f.costoTotalCirugia || f.Costo_Total_Cirugia || 0),
+    cuponCodigo: f.cuponCodigo || 'NINGUNO',
+    descuentoMonto: Number(f.descuentoMonto || 0),
+    costoTotalCirugia: Number(f.costoTotalCirugia || f.Costo_Total_Cirugia || f.costo_total_cirugia || 0),
+    cuotasTotales: Number(f.cuotasTotales || f.Cuotas_Totales || f.cuotas_totales || 1),
+    montoAbonado: Number(f.montoAbonado || f.Monto_Abonado || f.monto_abonado || 0),
+    saldoPendiente: Number(f.saldoPendiente || f.Saldo_Pendiente || f.saldo_pendiente || 0),
+    montoCuotaMensual: Number(f.montoCuotaMensual || 0),
+    estadoFinanciero: (f.estadoFinanciero || f.Estado_Financiero || f.estado_financiero || 'Al día') as any,
+    fechaInicio: String(f.fechaInicio || f.Fecha_Inicio || f.fecha_inicio || new Date().toISOString().split('T')[0]),
+    fechaEstimadaCirugia: String(f.fechaEstimadaCirugia || f.Fecha_Estimada_Cirugia || f.fecha_estimada_cirugia || new Date().toISOString().split('T')[0])
+  };
+}
+
 export class StorageService {
   // --- INICIALIZACIÓN ---
   static getPacientes(): Paciente[] {
     const data = localStorage.getItem(KEYS.PACIENTES);
-    if (data !== null) return JSON.parse(data);
-    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PACIENTES;
+    let list: Paciente[] = [];
+    if (data !== null) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch (e) {
+        list = [];
+      }
+    } else {
+      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PACIENTES;
+    }
+    return list.map(normalizePaciente);
   }
 
   static savePacientes(list: Paciente[]): void {
-    localStorage.setItem(KEYS.PACIENTES, JSON.stringify(list));
+    const normalized = (list || []).map(normalizePaciente);
+    localStorage.setItem(KEYS.PACIENTES, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
   }
 
   static getPagos(): Pago[] {
     const data = localStorage.getItem(KEYS.PAGOS);
-    if (data !== null) return JSON.parse(data);
-    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PAGOS;
+    let list: Pago[] = [];
+    if (data !== null) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch (e) {
+        list = [];
+      }
+    } else {
+      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PAGOS;
+    }
+    return list.map(normalizePago);
   }
 
   static savePagos(list: Pago[]): void {
-    localStorage.setItem(KEYS.PAGOS, JSON.stringify(list));
+    const normalized = (list || []).map(normalizePago);
+    localStorage.setItem(KEYS.PAGOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
   }
 
   static getUsuarios(): Usuario[] {
     const data = localStorage.getItem(KEYS.USUARIOS);
-    let list: Usuario[] = data ? JSON.parse(data) : INITIAL_USUARIOS;
+    let list: Usuario[] = [];
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch (e) {
+        list = INITIAL_USUARIOS;
+      }
+    } else {
+      list = INITIAL_USUARIOS;
+    }
+    list = list.map(normalizeUsuario);
     
     // Purgar usuarios antiguos de demostración
     const oldDemoEmails = [
@@ -83,7 +269,8 @@ export class StorageService {
   }
 
   static saveUsuarios(list: Usuario[]): void {
-    localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
+    const normalized = (list || []).map(normalizeUsuario);
+    localStorage.setItem(KEYS.USUARIOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
   }
 
@@ -107,23 +294,45 @@ export class StorageService {
 
   static getActividades(): ActividadCRM[] {
     const data = localStorage.getItem(KEYS.ACTIVIDADES);
-    if (data !== null) return JSON.parse(data);
-    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_ACTIVIDADES;
+    let list: ActividadCRM[] = [];
+    if (data !== null) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch (e) {
+        list = [];
+      }
+    } else {
+      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_ACTIVIDADES;
+    }
+    return list.map(normalizeActividad);
   }
 
   static saveActividades(list: ActividadCRM[]): void {
-    localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify(list));
+    const normalized = (list || []).map(normalizeActividad);
+    localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
   }
 
   static getFinanciamientos(): FinanciamientoCirugia[] {
     const data = localStorage.getItem(KEYS.FINANCIAMIENTOS);
-    if (data !== null) return JSON.parse(data);
-    return localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_FINANCIAMIENTOS;
+    let list: FinanciamientoCirugia[] = [];
+    if (data !== null) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch (e) {
+        list = [];
+      }
+    } else {
+      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_FINANCIAMIENTOS;
+    }
+    return list.map(normalizeFinanciamiento);
   }
 
   static saveFinanciamientos(list: FinanciamientoCirugia[]): void {
-    localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify(list));
+    const normalized = (list || []).map(normalizeFinanciamiento);
+    localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
   }
 
@@ -366,20 +575,99 @@ export class StorageService {
     try {
       const data = await GasService.sendGet(gasUrl, 'getAllData');
       if (data && data.success) {
-        if (data.pacientes && Array.isArray(data.pacientes)) {
-          this.savePacientes(data.pacientes);
+        if (data.pacientes && Array.isArray(data.pacientes) && data.pacientes.length > 0) {
+          const remotePacientes = data.pacientes.map(normalizePaciente).filter(p => p.id);
+          const localPacientes = this.getPacientes();
+          const mergedMap = new Map<string, Paciente>();
+
+          remotePacientes.forEach(p => {
+            if (p.id) mergedMap.set(p.id, p);
+          });
+
+          localPacientes.forEach(p => {
+            if (!mergedMap.has(p.id)) {
+              mergedMap.set(p.id, p);
+            } else {
+              const remote = mergedMap.get(p.id)!;
+              if ((!remote.nombre || remote.nombre === 'Paciente sin nombre') && p.nombre && p.nombre !== 'Paciente sin nombre') {
+                mergedMap.set(p.id, p);
+              }
+            }
+          });
+
+          this.savePacientes(Array.from(mergedMap.values()));
         }
-        if (data.pagos && Array.isArray(data.pagos)) {
-          this.savePagos(data.pagos);
+
+        if (data.pagos && Array.isArray(data.pagos) && data.pagos.length > 0) {
+          const remotePagos = data.pagos.map(normalizePago).filter(p => p.cod);
+          const localPagos = this.getPagos();
+          const mergedMap = new Map<string, Pago>();
+
+          remotePagos.forEach(p => {
+            if (p.cod) mergedMap.set(p.cod, p);
+          });
+
+          localPagos.forEach(p => {
+            if (!mergedMap.has(p.cod)) {
+              mergedMap.set(p.cod, p);
+            }
+          });
+
+          this.savePagos(Array.from(mergedMap.values()));
         }
-        if (data.usuarios && Array.isArray(data.usuarios)) {
-          this.saveUsuarios(data.usuarios);
+
+        if (data.usuarios && Array.isArray(data.usuarios) && data.usuarios.length > 0) {
+          const remoteUsuarios = data.usuarios.map(normalizeUsuario).filter(u => u.usuarioId);
+          const localUsuarios = this.getUsuarios();
+          const mergedMap = new Map<string, Usuario>();
+
+          remoteUsuarios.forEach(u => {
+            if (u.usuarioId) mergedMap.set(u.usuarioId, u);
+          });
+
+          localUsuarios.forEach(u => {
+            if (!mergedMap.has(u.usuarioId)) {
+              mergedMap.set(u.usuarioId, u);
+            }
+          });
+
+          this.saveUsuarios(Array.from(mergedMap.values()));
         }
-        if (data.actividades && Array.isArray(data.actividades)) {
-          this.saveActividades(data.actividades);
+
+        if (data.actividades && Array.isArray(data.actividades) && data.actividades.length > 0) {
+          const remoteCRM = data.actividades.map(normalizeActividad).filter(a => a.actividadId);
+          const localCRM = this.getActividades();
+          const mergedMap = new Map<string, ActividadCRM>();
+
+          remoteCRM.forEach(a => {
+            if (a.actividadId) mergedMap.set(a.actividadId, a);
+          });
+
+          localCRM.forEach(a => {
+            if (!mergedMap.has(a.actividadId)) {
+              mergedMap.set(a.actividadId, a);
+            }
+          });
+
+          this.saveActividades(Array.from(mergedMap.values()));
         }
-        if (data.financiamientos && Array.isArray(data.financiamientos)) {
-          this.saveFinanciamientos(data.financiamientos);
+
+        if (data.financiamientos && Array.isArray(data.financiamientos) && data.financiamientos.length > 0) {
+          const remoteFin = data.financiamientos.map(normalizeFinanciamiento).filter(f => f.planId);
+          const localFin = this.getFinanciamientos();
+          const mergedMap = new Map<string, FinanciamientoCirugia>();
+
+          remoteFin.forEach(f => {
+            if (f.planId) mergedMap.set(f.planId, f);
+          });
+
+          localFin.forEach(f => {
+            if (!mergedMap.has(f.planId)) {
+              mergedMap.set(f.planId, f);
+            }
+          });
+
+          this.saveFinanciamientos(Array.from(mergedMap.values()));
         }
 
         localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
