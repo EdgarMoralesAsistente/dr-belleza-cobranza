@@ -571,20 +571,97 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                 </select>
               </div>
 
+              {/* 4. SELECCIÓN DE PLAN DE FINANCIAMIENTO (PLAZOS) */}
+              {tipoPago === 'Financiamiento' && (
+                <div className="space-y-3 border-t border-slate-100 pt-3">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-700">
+                    Plan de Financiamiento Elegido (Plazo y Cuotas) *
+                  </label>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                    {getActivePlanOptions().filter(o => o.id !== 'plan_contado').map((opt) => {
+                      const isSelected = selectedPlanOptionId === opt.id;
+                      return (
+                        <div
+                          key={opt.id}
+                          onClick={() => handleSelectPlanOption(opt.id)}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-purple-600 bg-purple-50/80 shadow-2xs font-bold text-purple-950 ring-1 ring-purple-500'
+                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold">{opt.nombre}</span>
+                            {isSelected && <Check className="w-4 h-4 text-purple-700 shrink-0" />}
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-normal mt-0.5">{opt.descripcion}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Abono / Inicial ($ USD)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={montoInicial}
+                        onChange={(e) => setMontoInicial(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Fecha Estimada de Cirugía
+                      </label>
+                      <input
+                        type="date"
+                        value={fechaEstimadaCirugia}
+                        onChange={(e) => setFechaEstimadaCirugia(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* RESUMEN FINAL Y BOTONES */}
-              <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-1">
+              <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Subtotal Combo:</span>
                   <strong>${subtotalCost.toLocaleString()} USD</strong>
                 </div>
-                <div className="flex justify-between text-xs text-emerald-400">
-                  <span>Descuento Cupón ({selectedCouponCode}):</span>
-                  <strong>-$${descuentoMonto.toLocaleString()} USD</strong>
-                </div>
-                <div className="flex justify-between text-sm font-bold text-teal-300 border-t border-slate-800 pt-1">
+                {descuentoMonto > 0 && (
+                  <div className="flex justify-between text-xs text-emerald-400">
+                    <span>Descuento Cupón ({selectedCouponCode}):</span>
+                    <strong>-${descuentoMonto.toLocaleString()} USD</strong>
+                  </div>
+                )}
+                <div className="flex justify-between text-xs font-bold text-teal-300 border-t border-slate-800 pt-1">
                   <span>Total Neto Cirugía:</span>
                   <span>${costoTotalCirugia.toLocaleString()} USD</span>
                 </div>
+                {tipoPago === 'Financiamiento' && (
+                  <>
+                    <div className="flex justify-between text-xs text-purple-300">
+                      <span>Abono Inicial:</span>
+                      <span>-${Number(montoInicial).toLocaleString()} USD</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-amber-300">
+                      <span>Saldo Pendiente a Financiar:</span>
+                      <span>${saldoPendiente.toLocaleString()} USD</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] text-slate-300 bg-slate-800/80 p-2 rounded-lg mt-1 border border-slate-700/50">
+                      <span>Plan: <strong>{getActivePlanOptions().find(o => o.id === selectedPlanOptionId)?.nombre || 'Personalizado'}</strong></span>
+                      <span className="font-bold text-purple-200">{cuotasActuales} cuotas de ~${montoCuotaEst.toLocaleString()} USD/mes</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
