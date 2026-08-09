@@ -76,7 +76,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
   // Plan & Cuotas
   const [selectedPlanOptionId, setSelectedPlanOptionId] = useState<string>('plan_12m');
   const [cuotasTotales, setCuotasTotales] = useState<number>(12);
-  const [montoInicial, setMontoInicial] = useState<number>(1000);
+  const [montoInicial, setMontoInicial] = useState<number | string>(1000);
   const [fechaEstimadaCirugia, setFechaEstimadaCirugia] = useState('2026-06-15');
 
   // Cálculos en tiempo real
@@ -85,7 +85,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
   const activeCoupon = couponsList.find(c => c.codigo === selectedCouponCode) || couponsList[0];
   let descuentoMonto = 0;
-  if (activeCoupon.codigo !== 'NINGUNO') {
+  if (activeCoupon && activeCoupon.codigo !== 'NINGUNO') {
     if (activeCoupon.tipo === 'porcentaje') {
       descuentoMonto = Math.round((subtotalCost * activeCoupon.valor) / 100);
     } else {
@@ -94,9 +94,11 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
   }
 
   const costoTotalCirugia = Math.max(0, subtotalCost - descuentoMonto);
-  const saldoPendiente = Math.max(0, costoTotalCirugia - montoInicial);
+  const numMontoInicial = typeof montoInicial === 'number' ? montoInicial : (parseFloat(montoInicial as string) || 0);
+  const saldoPendiente = Math.max(0, costoTotalCirugia - numMontoInicial);
   const cuotasActuales = tipoPago === 'Contado' ? 1 : cuotasTotales;
   const montoCuotaEst = cuotasActuales > 0 ? Math.round(saldoPendiente / cuotasActuales) : 0;
+  const comboNombreConsolidado = selectedProcedures.map(p => p.nombre).join(' + ');
 
   const toggleProcedure = (procId: string) => {
     if (selectedProcIds.includes(procId)) {
@@ -172,8 +174,6 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
     setNewCouponVal(10);
     setShowNewCouponForm(false);
   };
-
-  const comboNombreConsolidado = selectedProcedures.map(p => p.nombre).join(' + ');
 
   const getConstructedPatient = (): Paciente => {
     return {
@@ -951,13 +951,13 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                        Abono / Inicial ($ USD)
+                        Abono Inicial / Cuota Inicial ($ USD) *
                       </label>
                       <input
                         type="number"
                         min={0}
                         value={montoInicial}
-                        onChange={(e) => setMontoInicial(Number(e.target.value))}
+                        onChange={(e) => setMontoInicial(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
                       />
                     </div>
@@ -977,37 +977,51 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                 </div>
               )}
 
-              {/* RESUMEN FINAL Y BOTONES */}
-              <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400">Subtotal Combo:</span>
-                  <strong>${subtotalCost.toLocaleString()} USD</strong>
+              {/* RESUMEN FINAL EN TIEMPO REAL */}
+              <div className="bg-slate-900 text-white p-4 rounded-xl space-y-2.5 border border-slate-800 shadow-xl">
+                <div className="flex items-center justify-between text-[10px] uppercase font-bold text-teal-400 tracking-wider">
+                  <span>Resumen Financiero en Tiempo Real</span>
+                  <span className="bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded-full text-[9px] border border-teal-500/30 font-mono">
+                    Cálculo Automático
+                  </span>
                 </div>
-                {descuentoMonto > 0 && (
-                  <div className="flex justify-between text-xs text-emerald-400">
-                    <span>Descuento Cupón ({selectedCouponCode}):</span>
-                    <strong>-${descuentoMonto.toLocaleString()} USD</strong>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-800 text-xs">
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 block font-medium">1. Subtotal Combo:</span>
+                    <strong className="text-sm text-slate-100 font-extrabold">${subtotalCost.toLocaleString()} USD</strong>
                   </div>
-                )}
-                <div className="flex justify-between text-xs font-bold text-teal-300 border-t border-slate-800 pt-1">
-                  <span>Total Neto Cirugía:</span>
-                  <span>${costoTotalCirugia.toLocaleString()} USD</span>
+
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 block font-medium">2. Descuento ({selectedCouponCode}):</span>
+                    <strong className="text-sm text-emerald-400 font-extrabold">
+                      {descuentoMonto > 0 ? `-$${descuentoMonto.toLocaleString()} USD` : '$0 USD'}
+                    </strong>
+                  </div>
+
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-teal-300 block font-medium">3. Total Neto Cirugía:</span>
+                    <strong className="text-sm text-teal-300 font-extrabold">${costoTotalCirugia.toLocaleString()} USD</strong>
+                  </div>
+
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-purple-300 block font-medium">4. Abono Inicial:</span>
+                    <strong className="text-sm text-purple-300 font-extrabold">-${numMontoInicial.toLocaleString()} USD</strong>
+                  </div>
+
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] text-amber-300 block font-medium">5. Saldo Pendiente:</span>
+                    <strong className="text-sm text-amber-400 font-extrabold">${saldoPendiente.toLocaleString()} USD</strong>
+                  </div>
                 </div>
+
                 {tipoPago === 'Financiamiento' && (
-                  <>
-                    <div className="flex justify-between text-xs text-purple-300">
-                      <span>Abono Inicial:</span>
-                      <span>-${Number(montoInicial).toLocaleString()} USD</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-bold text-amber-300">
-                      <span>Saldo Pendiente a Financiar:</span>
-                      <span>${saldoPendiente.toLocaleString()} USD</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px] text-slate-300 bg-slate-800/80 p-2 rounded-lg mt-1 border border-slate-700/50">
-                      <span>Plan: <strong>{getActivePlanOptions().find(o => o.id === selectedPlanOptionId)?.nombre || 'Personalizado'}</strong></span>
-                      <span className="font-bold text-purple-200">{cuotasActuales} cuotas de ~${montoCuotaEst.toLocaleString()} USD/mes</span>
-                    </div>
-                  </>
+                  <div className="flex justify-between items-center text-[11px] text-slate-300 bg-slate-800/90 p-2.5 rounded-lg mt-1 border border-slate-700">
+                    <span>Plan Elegido: <strong className="text-white">{getActivePlanOptions().find(o => o.id === selectedPlanOptionId)?.nombre || 'Personalizado'}</strong></span>
+                    <span className="font-bold text-purple-200 bg-purple-950/80 px-2.5 py-1 rounded-md border border-purple-500/30">
+                      {cuotasActuales} cuotas de ~${montoCuotaEst.toLocaleString()} USD / mes
+                    </span>
+                  </div>
                 )}
               </div>
 

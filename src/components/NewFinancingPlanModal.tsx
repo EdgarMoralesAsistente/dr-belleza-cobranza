@@ -71,7 +71,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   // 4. Plan de Financiamiento (Duración / Cuotas)
   const [selectedPlanOptionId, setSelectedPlanOptionId] = useState<string>('plan_12m');
   const [cuotasTotales, setCuotasTotales] = useState<number>(12);
-  const [montoInicial, setMontoInicial] = useState<number>(1000);
+  const [montoInicial, setMontoInicial] = useState<number | string>(1000);
   const [fechaEstimadaCirugia, setFechaEstimadaCirugia] = useState('2026-06-15');
 
   // CÁLCULOS EN TIEMPO REAL
@@ -85,7 +85,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
 
   // Descuento calculado
   let descuentoMonto = 0;
-  if (activeCoupon.codigo !== 'NINGUNO') {
+  if (activeCoupon && activeCoupon.codigo !== 'NINGUNO') {
     if (activeCoupon.tipo === 'porcentaje') {
       descuentoMonto = Math.round((subtotalCost * activeCoupon.valor) / 100);
     } else {
@@ -96,8 +96,11 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   // Costo Total Neto
   const costoTotalCirugia = Math.max(0, subtotalCost - descuentoMonto);
 
+  // Abono Inicial numérico
+  const numMontoInicial = typeof montoInicial === 'number' ? montoInicial : (parseFloat(montoInicial as string) || 0);
+
   // Saldo Pendiente
-  const saldoPendiente = Math.max(0, costoTotalCirugia - montoInicial);
+  const saldoPendiente = Math.max(0, costoTotalCirugia - numMontoInicial);
 
   // Valor por cuota
   const cuotasActuales = tipoPago === 'Contado' ? 1 : cuotasTotales;
@@ -572,13 +575,13 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 pt-3">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                Monto Abonado Inicial / Inicial ($ USD)
+                Abono Inicial / Cuota Inicial ($ USD) *
               </label>
               <input
                 type="number"
                 min="0"
                 value={montoInicial}
-                onChange={(e) => setMontoInicial(Number(e.target.value))}
+                onChange={(e) => setMontoInicial(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-emerald-800 text-xs focus:ring-2 focus:ring-teal-500/20"
               />
             </div>
@@ -597,40 +600,50 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
             </div>
           </div>
 
-          {/* CUADRO RESUMEN DE CÁLCULOS FINALES */}
-          <div className="bg-slate-900 text-white p-4 rounded-xl space-y-2">
-            <div className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">
-              Resumen Financiero Consolidado
+          {/* CUADRO RESUMEN DE CÁLCULOS FINALES EN TIEMPO REAL */}
+          <div className="bg-slate-900 text-white p-4 rounded-xl space-y-2.5 border border-slate-800 shadow-xl">
+            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-teal-400 tracking-wider">
+              <span>Resumen Financiero Consolidado (Cálculo en Tiempo Real)</span>
+              <span className="bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded-full text-[9px] border border-teal-500/30 font-mono">
+                Suma Automática
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs border-t border-slate-800 pt-2">
-              <div>
-                <span className="text-[10px] text-slate-400 block">Subtotal Combo:</span>
-                <span className="font-bold text-slate-200">${subtotalCost.toLocaleString()} USD</span>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-800 text-xs">
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] text-slate-400 block font-medium">1. Subtotal Combo:</span>
+                <strong className="text-sm text-slate-100 font-extrabold">${subtotalCost.toLocaleString()} USD</strong>
               </div>
 
-              <div>
-                <span className="text-[10px] text-slate-400 block">Descuento ({selectedCouponCode}):</span>
-                <span className="font-bold text-emerald-400">-$${descuentoMonto.toLocaleString()} USD</span>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] text-slate-400 block font-medium">2. Descuento ({selectedCouponCode}):</span>
+                <strong className="text-sm text-emerald-400 font-extrabold">
+                  {descuentoMonto > 0 ? `-$${descuentoMonto.toLocaleString()} USD` : '$0 USD'}
+                </strong>
               </div>
 
-              <div>
-                <span className="text-[10px] text-slate-400 block">Total Neto Cirugía:</span>
-                <span className="font-bold text-teal-300 text-sm">${costoTotalCirugia.toLocaleString()} USD</span>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] text-teal-300 block font-medium">3. Total Neto Cirugía:</span>
+                <strong className="text-sm text-teal-300 font-extrabold">${costoTotalCirugia.toLocaleString()} USD</strong>
               </div>
 
-              <div>
-                <span className="text-[10px] text-slate-400 block">Saldo Pendiente:</span>
-                <span className="font-bold text-amber-400 text-sm">${saldoPendiente.toLocaleString()} USD</span>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] text-purple-300 block font-medium">4. Abono Inicial:</span>
+                <strong className="text-sm text-purple-300 font-extrabold">-${numMontoInicial.toLocaleString()} USD</strong>
+              </div>
+
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60 col-span-2 sm:col-span-1">
+                <span className="text-[10px] text-amber-300 block font-medium">5. Saldo Pendiente:</span>
+                <strong className="text-sm text-amber-400 font-extrabold">${saldoPendiente.toLocaleString()} USD</strong>
               </div>
             </div>
 
-            {tipoPago === 'Financiamiento' && cuotasActuales > 1 && saldoPendiente > 0 && (
-              <div className="bg-slate-800/80 p-2 rounded-lg flex items-center justify-between text-[11px] mt-2 border border-slate-700">
+            {tipoPago === 'Financiamiento' && cuotasActuales > 1 && (
+              <div className="bg-slate-800/90 p-2.5 rounded-lg flex items-center justify-between text-[11px] mt-1 border border-slate-700">
                 <span className="text-slate-300">
-                  Cuota Mensual Estimada ({cuotasActuales} cuotas):
+                  Plan Elegido ({cuotasActuales} cuotas):
                 </span>
-                <strong className="text-teal-300 text-xs font-bold">
+                <strong className="text-teal-300 text-xs font-bold bg-teal-950/80 px-2.5 py-1 rounded-md border border-teal-500/30">
                   ~${montoCuotaEst.toLocaleString()} USD / mes
                 </strong>
               </div>
