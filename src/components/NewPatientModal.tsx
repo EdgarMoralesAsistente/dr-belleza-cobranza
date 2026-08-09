@@ -11,7 +11,10 @@ import {
   Tag,
   Printer,
   Check,
-  Plus
+  Plus,
+  ArrowLeft,
+  FileText,
+  Eye
 } from 'lucide-react';
 import { Paciente, FinanciamientoCirugia } from '../types';
 import { StorageService } from '../services/storageService';
@@ -19,6 +22,7 @@ import {
   getActiveCatalog,
   getActiveCoupons,
   getActivePlanOptions,
+  getClinicConfig,
   ProcedureCatalogItem,
   CouponItem,
   printPatientFinancingPDF
@@ -41,6 +45,9 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
   // Pestañas del modal de registro
   const [activeStep, setActiveStep] = useState<'datos' | 'financiamiento'>('datos');
+
+  // Vista Previa de Ficha Médica PDF
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // Configuración Quirúrgica & Financiera
   const [incluirFinanciamiento, setIncluirFinanciamiento] = useState(true);
@@ -220,13 +227,325 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
   };
 
   const handlePrintPDF = () => {
-    const patientToPrint = getConstructedPatient();
-    const planToPrint = incluirFinanciamiento ? getConstructedPlan(patientToPrint.id) : null;
-    printPatientFinancingPDF(patientToPrint, planToPrint);
+    setShowPrintPreview(true);
   };
+
+  const patientToPrint = getConstructedPatient();
+  const planToPrint = incluirFinanciamiento ? getConstructedPlan(patientToPrint.id) : null;
+  const clinicConfig = getClinicConfig();
+  const fechaHoyStr = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
+      
+      {/* MODAL DE VISTA PREVIA DE FICHA PDF */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden my-auto flex flex-col max-h-[96vh] text-slate-100">
+            
+            {/* Header de la Modal de Vista Previa */}
+            <div className="px-5 py-3.5 bg-slate-800/90 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-teal-500/20 text-teal-400 rounded-lg border border-teal-500/30">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-sm font-bold text-white">Vista Previa — Ficha Médica & Plan Quirúrgico</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      Previsualización PDF
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">Verifique los datos antes de activar la impresión de su sistema</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPrintPreview(false)}
+                  className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-colors flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Volver a Editar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    printPatientFinancingPDF(patientToPrint, planToPrint);
+                  }}
+                  className="px-4 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center space-x-2 cursor-pointer active:scale-98"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>🖨️ Mandar a Imprimir PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Document Preview Sheet Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto bg-slate-950/60 flex justify-center">
+              
+              {/* Paper Document Representation */}
+              <div className="w-full max-w-3xl bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6 text-xs font-sans">
+                
+                {/* Banner Header de la Clínica */}
+                <div className="bg-slate-900 text-white p-5 rounded-xl border-b-4 border-teal-600 flex justify-between items-center">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-lg bg-teal-600 text-white font-extrabold text-sm flex items-center justify-center tracking-wider border border-teal-400 shadow-2xs">
+                      {clinicConfig.logoTexto ? clinicConfig.logoTexto.substring(0, 2).toUpperCase() : 'DB'}
+                    </div>
+                    <div>
+                      <h1 className="text-base font-bold font-serif italic text-white tracking-tight">{clinicConfig.nombreClinica}</h1>
+                      <p className="text-[11px] text-teal-300 font-medium">{clinicConfig.subtitulo}</p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="inline-block px-2.5 py-1 bg-teal-900/80 border border-teal-500/40 text-teal-200 font-mono text-[11px] font-bold rounded-md">
+                      REGISTRO #{patientToPrint.id}
+                    </div>
+                    <div className="text-[10px] text-slate-300 mt-1">
+                      Fecha: {fechaHoyStr}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1. Datos Personales del Paciente */}
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-3">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                      <span>1. Información Personal del Paciente</span>
+                    </h2>
+                    <span className="text-[10px] text-slate-400">Expediente Médico CRM</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nombre y Apellidos</span>
+                      <div className="text-sm font-bold text-teal-800">{patientToPrint.nombre}</div>
+
+                      <div className="mt-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cédula de Identidad</span>
+                        <div className="text-xs font-bold text-slate-800">{patientToPrint.cedula}</div>
+                      </div>
+
+                      <div className="mt-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Teléfono de Contacto</span>
+                        <div className="text-xs font-semibold text-slate-700">{patientToPrint.telefono}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Correo Electrónico</span>
+                      <div className="text-xs font-semibold text-slate-800 truncate">{patientToPrint.correo}</div>
+
+                      <div className="mt-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Promoción / Origen</span>
+                        <div className="text-xs font-bold text-purple-700">{patientToPrint.promocion}</div>
+                      </div>
+
+                      <div className="mt-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dirección de Residencia</span>
+                        <div className="text-xs text-slate-600">{patientToPrint.direccion}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Combo Quirúrgico Seleccionado */}
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-3">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                      <span>2. Combo Quirúrgico & Procedimientos</span>
+                    </h2>
+                    <span className="text-[10px] text-slate-400">Intervención Programada</span>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900 text-white text-[10px] uppercase tracking-wider">
+                          <th className="p-2.5 w-8">#</th>
+                          <th className="p-2.5">Procedimiento Quirúrgico Estético</th>
+                          <th className="p-2.5 text-right">Costo Base ($ USD)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {selectedProcedures.map((proc, idx) => (
+                          <tr key={proc.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="p-2.5 font-bold text-slate-400">{idx + 1}</td>
+                            <td className="p-2.5 font-bold text-slate-800">{proc.nombre}</td>
+                            <td className="p-2.5 text-right font-bold text-teal-700">${proc.precioDefault.toLocaleString()} USD</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 3. Desglose del Plan Financiero */}
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-3">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                      <span>3. Desglose del Plan Financiero y Forma de Pago</span>
+                    </h2>
+                    <span className="text-[10px] text-slate-400">Acuerdo Comercial</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Modalidad de Pago</span>
+                        <div className="text-xs font-extrabold text-teal-800 uppercase">{tipoPago}</div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cupón Aplicado</span>
+                        <div className="text-xs font-bold text-purple-700">
+                          {selectedCouponCode} {descuentoMonto > 0 ? `(-$${descuentoMonto.toLocaleString()} USD)` : ''}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Plan Elegido</span>
+                        <div className="text-xs font-bold text-slate-800">
+                          {getActivePlanOptions().find(o => o.id === selectedPlanOptionId)?.nombre || 'Contado'}
+                        </div>
+                      </div>
+                      {fechaEstimadaCirugia && (
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fecha Estimada de Cirugía</span>
+                          <div className="text-xs font-semibold text-slate-700">{fechaEstimadaCirugia}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-900 text-white p-4 rounded-xl space-y-1.5 border border-slate-800">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Subtotal Combo Quirúrgico:</span>
+                        <strong className="text-slate-200">${subtotalCost.toLocaleString()} USD</strong>
+                      </div>
+                      {descuentoMonto > 0 && (
+                        <div className="flex justify-between text-xs text-emerald-400">
+                          <span>Descuento Cupón:</span>
+                          <strong>-${descuentoMonto.toLocaleString()} USD</strong>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs font-bold text-teal-300 border-t border-slate-800 pt-1.5">
+                        <span>TOTAL NETO CIRUGÍA:</span>
+                        <span>${costoTotalCirugia.toLocaleString()} USD</span>
+                      </div>
+                      {tipoPago === 'Financiamiento' && (
+                        <>
+                          <div className="flex justify-between text-xs text-purple-300 pt-1">
+                            <span>Abono / Inicial Pagada:</span>
+                            <span>-${Number(montoInicial).toLocaleString()} USD</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-bold text-amber-400 border-t border-slate-800 pt-1">
+                            <span>SALDO PENDIENTE:</span>
+                            <span>${saldoPendiente.toLocaleString()} USD</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Cronograma Estimado de Cuotas Mensuales */}
+                {tipoPago === 'Financiamiento' && cuotasActuales > 1 && saldoPendiente > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-3">
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                        <span>4. Cronograma Estimado de Cuotas Mensuales</span>
+                      </h2>
+                      <span className="text-[10px] text-slate-400">Calendario de Pagos</span>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-slate-900 text-white text-[10px] uppercase tracking-wider">
+                          <tr>
+                            <th className="p-2.5">N° Cuota</th>
+                            <th className="p-2.5">Fecha de Vencimiento Estimada</th>
+                            <th className="p-2.5 text-right">Monto Cuota ($ USD)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs">
+                          {Array.from({ length: cuotasActuales }).map((_, i) => {
+                            const dueDate = new Date();
+                            dueDate.setMonth(dueDate.getMonth() + (i + 1));
+                            const dateStr = dueDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                            return (
+                              <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                <td className="p-2.5 font-bold text-slate-900">Cuota #{i + 1}</td>
+                                <td className="p-2.5 text-slate-600 font-medium">{dateStr}</td>
+                                <td className="p-2.5 text-right font-bold text-teal-700">
+                                  ${montoCuotaEst.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Firmas de Conformidad */}
+                <div className="pt-6 grid grid-cols-2 gap-8 border-t border-slate-200">
+                  <div className="border-t-2 border-slate-300 pt-2 text-center">
+                    <div className="font-bold text-slate-900 text-xs">Firma de la Paciente</div>
+                    <div className="font-semibold text-slate-700 text-[11px] mt-0.5">{patientToPrint.nombre || 'Nombre de la Paciente'}</div>
+                    <div className="text-[10px] text-slate-500">C.I: {patientToPrint.cedula || 'Documento'}</div>
+                    <div className="text-[9px] text-slate-400 mt-1">Conforme con el Plan Quirúrgico y Financiero</div>
+                  </div>
+
+                  <div className="border-t-2 border-slate-300 pt-2 text-center">
+                    <div className="font-bold text-slate-900 text-xs">Cirujano Plástico / Clínica</div>
+                    <div className="font-semibold text-slate-700 text-[11px] mt-0.5">{clinicConfig.doctorRepresentante}</div>
+                    <div className="text-[10px] text-slate-500">{clinicConfig.nombreClinica}</div>
+                    <div className="text-[9px] text-slate-400 mt-1">Dirección Médica</div>
+                  </div>
+                </div>
+
+                {/* Footer Términos */}
+                <div className="text-[9px] text-slate-400 text-center border-t border-slate-100 pt-3 leading-relaxed">
+                  <strong>{clinicConfig.nombreClinica}</strong> — {clinicConfig.direccion} — Tel: {clinicConfig.telefono}<br />
+                  {clinicConfig.terminosReporte}
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer Bar de Acciones */}
+            <div className="px-5 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPrintPreview(false)}
+                className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-700 transition-colors flex items-center space-x-1.5 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver a Editar Datos</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  printPatientFinancingPDF(patientToPrint, planToPrint);
+                }}
+                className="px-6 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center space-x-2 cursor-pointer active:scale-98"
+              >
+                <Printer className="w-4 h-4" />
+                <span>🖨️ Mandar a Imprimir / Guardar PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white w-full max-w-2xl sm:max-w-3xl rounded-xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[92vh]">
         
         {/* HEADER */}
