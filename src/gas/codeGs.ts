@@ -218,6 +218,15 @@ function doPost(e) {
       return responseJSON({ success: true, message: 'Usuario guardado' });
     }
 
+    if (action === 'deletePaciente') {
+      const pId = contents.pacienteId;
+      deleteRowsByColumnValue(SHEETS.PACIENTES, 0, pId);
+      deleteRowsByColumnValue(SHEETS.PAGOS, 2, pId);
+      deleteRowsByColumnValue(SHEETS.ACTIVIDADES, 1, pId);
+      deleteRowsByColumnValue(SHEETS.FINANCIAMIENTO, 1, pId);
+      return responseJSON({ success: true, message: 'Paciente y todos sus registros eliminados correctamente.' });
+    }
+
     if (action === 'syncFullDatabase') {
       // Reemplazar o volcar toda la base de datos local hacia Sheets
       const { pacientes, pagos, usuarios, actividades, financiamientos } = contents;
@@ -348,6 +357,17 @@ function replaceSheetData(sheetName, rowsData) {
   if (rowsData && rowsData.length > 0) {
     const cleanRows = rowsData.map(function(r) { return sanitizeRow(r); });
     sheet.getRange(2, 1, cleanRows.length, cleanRows[0].length).setValues(cleanRows);
+  }
+}
+
+function deleteRowsByColumnValue(sheetName, colIndex, targetVal) {
+  const sheet = getOrCreateSheet(sheetName);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  for (let i = values.length - 1; i >= 1; i--) {
+    if (String(values[i][colIndex]) === String(targetVal)) {
+      sheet.deleteRow(i + 1);
+    }
   }
 }
 `;

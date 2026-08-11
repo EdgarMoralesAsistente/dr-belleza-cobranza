@@ -109,6 +109,58 @@ export function getClinicConfig(): ClinicConfig {
   return DEFAULT_CLINIC_CONFIG;
 }
 
+export interface PaymentScheduleItem {
+  numeroCuota: number;
+  fechaVencimiento: string; // YYYY-MM-DD
+  fechaFormateada: string; // DD/MM/YYYY
+  montoCuota: number;
+}
+
+/**
+ * Calcula el cronograma exacto de fechas de pago y montos para un plan de financiamiento.
+ */
+export function calculatePaymentSchedule(
+  fechaInicioStr: string,
+  cuotasTotales: number,
+  saldoPendiente: number
+): PaymentScheduleItem[] {
+  if (cuotasTotales <= 0 || saldoPendiente <= 0) return [];
+
+  const schedule: PaymentScheduleItem[] = [];
+  const startDate = fechaInicioStr ? new Date(fechaInicioStr + 'T00:00:00') : new Date();
+  const validStartDate = isNaN(startDate.getTime()) ? new Date() : startDate;
+
+  const baseMonto = Math.floor(saldoPendiente / cuotasTotales);
+  let acumulado = 0;
+
+  for (let i = 1; i <= cuotasTotales; i++) {
+    const dueDate = new Date(validStartDate);
+    dueDate.setMonth(validStartDate.getMonth() + i);
+
+    const year = dueDate.getFullYear();
+    const month = String(dueDate.getMonth() + 1).padStart(2, '0');
+    const day = String(dueDate.getDate()).padStart(2, '0');
+    const dateISO = `${year}-${month}-${day}`;
+    const dateFormatted = `${day}/${month}/${year}`;
+
+    let monto = baseMonto;
+    if (i === cuotasTotales) {
+      monto = Math.max(0, saldoPendiente - acumulado);
+    } else {
+      acumulado += monto;
+    }
+
+    schedule.push({
+      numeroCuota: i,
+      fechaVencimiento: dateISO,
+      fechaFormateada: dateFormatted,
+      montoCuota: monto
+    });
+  }
+
+  return schedule;
+}
+
 /**
  * Función para Imprimir y Exportar a PDF la Ficha Completa del Paciente
  * Ajustado 100% al estilo gráfico de la Web App (Slate/Teal Dark Banner, Cards, Grids, Typography)
@@ -135,27 +187,23 @@ export function printPatientFinancingPDF(paciente: Paciente, plan?: Financiamien
   const inicial = plan?.montoAbonado || 0;
   const saldo = plan?.saldoPendiente ?? (totalNeto - inicial);
   const cuotas = plan?.cuotasTotales || 1;
-  const montoCuota = cuotas > 0 ? (saldo / cuotas) : 0;
   const tipoPago = plan?.tipoPago || (cuotas <= 1 ? 'Contado' : 'Plan de Financiamiento');
   const cupon = plan?.cuponCodigo && plan.cuponCodigo !== 'NINGUNO' ? plan.cuponCodigo : 'Sin cupón';
 
   // Generación del cronograma de cuotas
   let cuotasHtml = '';
   if (cuotas > 1 && saldo > 0) {
-    const today = new Date();
-    for (let i = 1; i <= cuotas; i++) {
-      const dueDate = new Date(today);
-      dueDate.setMonth(today.getMonth() + i);
-      const dateStr = dueDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
-      const rowBg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
+    const schedule = calculatePaymentSchedule(plan?.fechaInicio || new Date().toISOString().split('T')[0], cuotas, saldo);
+    schedule.forEach((item, index) => {
+      const rowBg = index % 2 === 0 ? '#f8fafc' : '#ffffff';
       cuotasHtml += `
         <tr style="background-color: ${rowBg};">
-          <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">Cuota #${i}</td>
-          <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 500;">${dateStr}</td>
-          <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 800; color: #0f766e; font-size: 13px;">$${montoCuota.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</td>
+          <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">Cuota #${item.numeroCuota}</td>
+          <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 500;">${item.fechaFormateada}</td>
+          <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 800; color: #0f766e; font-size: 13px;">$${item.montoCuota.toLocaleString('en-US')} USD</td>
         </tr>
       `;
-    }
+    });
   }
 
   const htmlContent = `

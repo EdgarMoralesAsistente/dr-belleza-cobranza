@@ -146,6 +146,7 @@ export default function App() {
     StorageService.addPaciente(p);
     if (plan) {
       StorageService.saveFinanciamiento(plan);
+      StorageService.generateAndSavePaymentAlarms(p, plan);
     }
     refreshData();
     setSelectedPatient360(p);
@@ -169,6 +170,10 @@ export default function App() {
 
   const handleSaveFinancingPlan = (plan: FinanciamientoCirugia) => {
     StorageService.saveFinanciamiento(plan);
+    const patient = pacientes.find(p => p.id === plan.pacienteId);
+    if (patient) {
+      StorageService.generateAndSavePaymentAlarms(patient, plan);
+    }
     refreshData();
   };
 
@@ -184,6 +189,14 @@ export default function App() {
 
   const handleUpdatePatient = (p: Paciente) => {
     StorageService.updatePaciente(p);
+    refreshData();
+  };
+
+  const handleDeletePatient = (patientId: string) => {
+    StorageService.deletePaciente(patientId);
+    if (selectedPatient360?.id === patientId) {
+      setSelectedPatient360(null);
+    }
     refreshData();
   };
 
@@ -251,8 +264,10 @@ export default function App() {
           {activeTab === 'pacientes' && (
             <PatientsView
               pacientes={pacientes}
+              userRole={currentUser.rol}
               onSelectPatient={handleOpen360ByPatientId}
               onNewPatient={() => setShowNewPatientModal(true)}
+              onDeletePatient={handleDeletePatient}
             />
           )}
 
@@ -335,6 +350,7 @@ export default function App() {
           pagos={pagos}
           actividades={actividades}
           financiamientos={financiamientos}
+          userRole={currentUser.rol}
           onClose={() => setSelectedPatient360(null)}
           onOpenNewPaymentForPatient={(p) => {
             setPreselectedPatientForPayment(p);
@@ -349,6 +365,7 @@ export default function App() {
             setShowNewFinancingModal(true);
           }}
           onPrintReceipt={setSelectedReceiptForPrint}
+          onDeletePatient={handleDeletePatient}
         />
       )}
 

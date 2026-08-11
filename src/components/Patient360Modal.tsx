@@ -15,7 +15,8 @@ import {
   AlertTriangle,
   FileText,
   DollarSign,
-  Printer
+  Printer,
+  Trash2
 } from 'lucide-react';
 import { Paciente, Pago, ActividadCRM, FinanciamientoCirugia } from '../types';
 import { printPatientFinancingPDF } from '../services/financingConfig';
@@ -25,11 +26,13 @@ interface Patient360ModalProps {
   pagos: Pago[];
   actividades: ActividadCRM[];
   financiamientos: FinanciamientoCirugia[];
+  userRole?: string;
   onClose: () => void;
   onOpenNewPaymentForPatient: (paciente: Paciente) => void;
   onOpenNewActivityForPatient: (paciente: Paciente) => void;
   onOpenNewFinancingPlanForPatient: (paciente: Paciente) => void;
   onPrintReceipt: (pago: Pago) => void;
+  onDeletePatient?: (pacienteId: string) => void;
 }
 
 export const Patient360Modal: React.FC<Patient360ModalProps> = ({
@@ -37,13 +40,18 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
   pagos,
   actividades,
   financiamientos,
+  userRole,
   onClose,
   onOpenNewPaymentForPatient,
   onOpenNewActivityForPatient,
   onOpenNewFinancingPlanForPatient,
-  onPrintReceipt
+  onPrintReceipt,
+  onDeletePatient
 }) => {
   const [activeTab, setActiveTab] = useState<'datos' | 'crm' | 'financiamiento'>('datos');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const isAdmin = userRole === 'Administrador';
 
   if (!paciente) return null;
 
@@ -117,6 +125,17 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                 <Clock className="w-4 h-4" />
                 <span>Agendar CRM</span>
               </button>
+
+              {isAdmin && onDeletePatient && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-semibold text-xs rounded-lg border border-rose-500/40 flex items-center space-x-1.5 transition-all cursor-pointer shrink-0"
+                  title="Eliminar paciente y todos sus registros (Solo Administrador)"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-400 group-hover:text-white" />
+                  <span>Borrar Paciente</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -412,6 +431,65 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
         </div>
 
       </div>
+
+      {/* MODAL CONFIRMACIÓN ELIMINAR PACIENTE FICHA 360 */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Borrar Ficha de Paciente</h3>
+                <span className="text-xs text-rose-600 font-semibold uppercase tracking-wider">Acción Exclusiva de Administrador</span>
+              </div>
+            </div>
+
+            <div className="bg-rose-50/70 border border-rose-200 p-3.5 rounded-xl text-xs text-slate-700 space-y-2">
+              <p>
+                Estás a punto de borrar definitivamente la ficha médica de:
+              </p>
+              <div className="font-bold text-slate-900 text-sm bg-white p-2 rounded-lg border border-rose-200">
+                {paciente.nombre} <span className="font-normal text-slate-500 text-xs">({paciente.id} - C.I. {paciente.cedula})</span>
+              </div>
+              <p className="text-rose-700 font-semibold pt-1">
+                ⚠️ Se eliminará de forma irreversible toda la información asociada:
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-slate-600">
+                <li>Expediente clínico y datos personales</li>
+                <li>Historial de abonos ({patientPagos.length} recibos)</li>
+                <li>Plan de financiamiento quirúrgico</li>
+                <li>Alarmas de cobro y agenda CRM ({patientCRM.length} actividades)</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeletePatient) {
+                    onDeletePatient(paciente.id);
+                  }
+                  setShowDeleteConfirm(false);
+                  onClose();
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center space-x-1.5 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Sí, Borrar Definitivamente</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

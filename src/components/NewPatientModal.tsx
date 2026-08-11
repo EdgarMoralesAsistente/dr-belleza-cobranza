@@ -25,7 +25,8 @@ import {
   getClinicConfig,
   ProcedureCatalogItem,
   CouponItem,
-  printPatientFinancingPDF
+  printPatientFinancingPDF,
+  calculatePaymentSchedule
 } from '../services/financingConfig';
 
 interface NewPatientModalProps {
@@ -476,20 +477,15 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs">
-                          {Array.from({ length: cuotasActuales }).map((_, i) => {
-                            const dueDate = new Date();
-                            dueDate.setMonth(dueDate.getMonth() + (i + 1));
-                            const dateStr = dueDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                            return (
-                              <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                <td className="p-2.5 font-bold text-slate-900">Cuota #{i + 1}</td>
-                                <td className="p-2.5 text-slate-600 font-medium">{dateStr}</td>
-                                <td className="p-2.5 text-right font-bold text-teal-700">
-                                  ${montoCuotaEst.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                                </td>
-                              </tr>
-                            );
-                          })}
+                          {calculatePaymentSchedule(new Date().toISOString().split('T')[0], cuotasActuales, saldoPendiente).map((item, idx) => (
+                            <tr key={item.numeroCuota} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                              <td className="p-2.5 font-bold text-slate-900">Cuota #{item.numeroCuota}</td>
+                              <td className="p-2.5 text-slate-600 font-medium">{item.fechaFormateada}</td>
+                              <td className="p-2.5 text-right font-bold text-teal-700">
+                                ${item.montoCuota.toLocaleString('en-US')} USD
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -1024,6 +1020,55 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                   </div>
                 )}
               </div>
+
+              {/* CRONOGRAMA DE CUOTAS Y ALARMAS AUTOMÁTICAS EN TIEMPO REAL */}
+              {tipoPago === 'Financiamiento' && cuotasActuales > 0 && saldoPendiente > 0 && (
+                <div className="bg-slate-900 text-white p-4 rounded-xl space-y-3 border border-slate-800 shadow-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse"></span>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">
+                        Cronograma de Cuotas & Alarmas de Calendario
+                      </h4>
+                    </div>
+                    <span className="text-[10px] bg-purple-950 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/40 font-bold">
+                      🔔 {cuotasActuales} Alarmas de Cobro en Calendario
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Al guardar la paciente, el sistema programará automáticamente un evento con alarma activa en el módulo <strong>"Calendario & Alarmas"</strong> para cada fecha de vencimiento:
+                  </p>
+
+                  <div className="border border-slate-800 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-800 text-slate-300 text-[10px] uppercase font-bold sticky top-0">
+                        <tr>
+                          <th className="p-2 border-b border-slate-700">N° Cuota</th>
+                          <th className="p-2 border-b border-slate-700">Fecha Vencimiento</th>
+                          <th className="p-2 border-b border-slate-700 text-right">Monto Cuota ($ USD)</th>
+                          <th className="p-2 border-b border-slate-700 text-center">Alarma CRM</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 text-slate-200">
+                        {calculatePaymentSchedule(new Date().toISOString().split('T')[0], cuotasActuales, saldoPendiente).map((item) => (
+                          <tr key={item.numeroCuota} className="hover:bg-slate-800/50 transition-colors">
+                            <td className="p-2 font-bold text-white">Cuota #{item.numeroCuota}</td>
+                            <td className="p-2 text-teal-300 font-mono font-bold">{item.fechaFormateada}</td>
+                            <td className="p-2 text-right font-bold text-emerald-400">${item.montoCuota.toLocaleString()} USD</td>
+                            <td className="p-2 text-center">
+                              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                <span>🔔</span>
+                                <span>Programada</span>
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <button

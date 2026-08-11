@@ -14,6 +14,7 @@ import {
   INITIAL_FINANCIAMIENTOS
 } from './mockData';
 import { GasService } from './gasService';
+import { calculatePaymentSchedule } from './financingConfig';
 
 const KEYS = {
   PACIENTES: 'drb_pacientes_v1',
@@ -470,6 +471,42 @@ export class StorageService {
     }
   }
 
+  static deletePaciente(patientId: string): void {
+    const targetPatient = this.getPacientes().find(p => p.id === patientId);
+    if (!targetPatient) return;
+
+    // 1. Eliminar Paciente de la lista
+    const pacientes = this.getPacientes().filter(p => p.id !== patientId);
+    this.savePacientes(pacientes);
+
+    // 2. Eliminar Pagos vinculados
+    const targetCedula = (targetPatient.cedula || '').trim().toLowerCase();
+    const targetNombre = (targetPatient.nombre || '').trim().toLowerCase();
+
+    const pagos = this.getPagos().filter(p => {
+      if (!p) return false;
+      if (p.id === patientId) return false;
+      if (targetCedula && p.id && p.id.trim().toLowerCase() === targetCedula) return false;
+      if (targetNombre && p.nombre && p.nombre.trim().toLowerCase() === targetNombre) return false;
+      return true;
+    });
+    this.savePagos(pagos);
+
+    // 3. Eliminar Actividades CRM & Alarmas de Calendario vinculadas
+    const actividades = this.getActividades().filter(a => a.pacienteId !== patientId);
+    this.saveActividades(actividades);
+
+    // 4. Eliminar Planes de Financiamiento vinculados
+    const financiamientos = this.getFinanciamientos().filter(f => f.pacienteId !== patientId);
+    this.saveFinanciamientos(financiamientos);
+
+    // 5. Sync en segundo plano con Google Sheets si existe URL
+    const gasUrl = this.getGasUrl();
+    if (gasUrl) {
+      GasService.sendPost(gasUrl, { action: 'deletePaciente', pacienteId }).catch(console.error);
+    }
+  }
+
   // --- OPERACIONES DE PAGOS Y RECIBOS ---
   static addPago(pago: Pago, updateFinanciamientoPlanId?: string): void {
     const list = this.getPagos();
@@ -540,6 +577,43 @@ export class StorageService {
       list.unshift(plan);
     }
     this.saveFinanciamientos(list);
+
+    const gasUrl = this.getGasUrl();
+    if (gasUrl) {
+      GasService.sendPost(gasUrl, { action: 'saveFinanciamiento', financiamiento: plan }).catch(console.error);
+    }
+  }
+
+  static generateAndSavePaymentAlarms(paciente: Paciente, plan: FinanciamientoCirugia): ActividadCRM[] {
+    if (!plan || plan.cuotasTotales <= 0 || plan.saldoPendiente <= 0) return [];
+
+    const schedule = calculatePaymentSchedule(
+      plan.fechaInicio || new Date().toISOString().split('T')[0],
+      plan.cuotasTotales,
+      plan.saldoPendiente
+    );
+
+    const createdActivities: ActividadCRM[] = [];
+    const timestamp = Date.now();
+
+    schedule.forEach((item, index) => {
+      const act: ActividadCRM = {
+        actividadId: `ACT-PAY-${plan.planId}-${index + 1}-${timestamp.toString().slice(-4)}`,
+        pacienteId: paciente.id,
+        tipoActividad: 'Recordatorio de Pago',
+        descripcion: `🔔 Recordatorio de Pago Cuota #${item.numeroCuota}/${plan.cuotasTotales}: Paciente ${paciente.nombre} (C.I. ${paciente.cedula}). Monto a cobrar: $${item.montoCuota.toLocaleString()} USD. Procedimiento: ${plan.procedimiento}.`,
+        fechaProgramada: item.fechaVencimiento,
+        hora: '09:00 AM',
+        estado: 'Pendiente',
+        alarma: true,
+        responsableId: 'USR-001'
+      };
+
+      this.addActividad(act);
+      createdActivities.push(act);
+    });
+
+    return createdActivities;
   }
 
   // --- OPERACIONES DE USUARIOS ---
