@@ -205,7 +205,7 @@ export const NewActivityModal: React.FC<NewActivityModalProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tipo de Gestión *</label>
               <select
@@ -235,7 +235,7 @@ export const NewActivityModal: React.FC<NewActivityModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Fecha Programada *</label>
               <input

@@ -21,6 +21,7 @@ import { NewUserModal } from './components/NewUserModal';
 import { ExecutivePresentationModal } from './components/ExecutivePresentationModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { LoginView } from './components/LoginView';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia, Reintegro } from './types';
 import { StorageService } from './services/storageService';
@@ -253,106 +254,108 @@ export default function App() {
 
         {/* CONTENIDO PRINCIPAL POR PESTAÑA */}
         <main className="flex-1 w-full min-w-0 overflow-y-auto">
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              pacientes={pacientes}
-              pagos={pagos}
-              actividades={actividades}
-              financiamientos={financiamientos}
-              reintegros={reintegros}
-              onSelectPatient={handleOpen360ByPatientId}
-              onNavigateToTab={setActiveTab}
-            />
-          )}
+          <ErrorBoundary key={activeTab} fallbackTitle="Surgió un inconveniente al cargar esta sección">
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                pacientes={pacientes}
+                pagos={pagos}
+                actividades={actividades}
+                financiamientos={financiamientos}
+                reintegros={reintegros}
+                onSelectPatient={handleOpen360ByPatientId}
+                onNavigateToTab={setActiveTab}
+              />
+            )}
 
-          {activeTab === 'pacientes' && (
-            <PatientsView
-              pacientes={pacientes}
-              userRole={currentUser.rol}
-              onSelectPatient={handleOpen360ByPatientId}
-              onNewPatient={() => setShowNewPatientModal(true)}
-              onDeletePatient={handleDeletePatient}
-            />
-          )}
+            {activeTab === 'pacientes' && (
+              <PatientsView
+                pacientes={pacientes}
+                userRole={currentUser.rol}
+                onSelectPatient={handleOpen360ByPatientId}
+                onNewPatient={() => setShowNewPatientModal(true)}
+                onDeletePatient={handleDeletePatient}
+              />
+            )}
 
-          {activeTab === 'crm' && (
-            <CrmView
-              actividades={actividades}
-              pacientes={pacientes}
-              financiamientos={financiamientos}
-              pagos={pagos}
-              onNewActivity={() => {
-                setPreselectedPatientForActivity(null);
-                setShowNewActivityModal(true);
-              }}
-              onUpdateActivity={handleUpdateActivity}
-              onUpdatePatient={handleUpdatePatient}
-              onSelectPatient={handleOpen360ByPatientId}
-              onNewPatient={() => setShowNewPatientModal(true)}
-              onNewActivityForPatient={(p) => {
-                setPreselectedPatientForActivity(p);
-                setShowNewActivityModal(true);
-              }}
-              onNewPaymentForPatient={(p) => {
-                setPreselectedPatientForPayment(p);
-                setShowNewPaymentModal(true);
-              }}
-            />
-          )}
+            {activeTab === 'crm' && (
+              <CrmView
+                actividades={actividades}
+                pacientes={pacientes}
+                financiamientos={financiamientos}
+                pagos={pagos}
+                onNewActivity={() => {
+                  setPreselectedPatientForActivity(null);
+                  setShowNewActivityModal(true);
+                }}
+                onUpdateActivity={handleUpdateActivity}
+                onUpdatePatient={handleUpdatePatient}
+                onSelectPatient={handleOpen360ByPatientId}
+                onNewPatient={() => setShowNewPatientModal(true)}
+                onNewActivityForPatient={(p) => {
+                  setPreselectedPatientForActivity(p);
+                  setShowNewActivityModal(true);
+                }}
+                onNewPaymentForPatient={(p) => {
+                  setPreselectedPatientForPayment(p);
+                  setShowNewPaymentModal(true);
+                }}
+              />
+            )}
 
-          {activeTab === 'financiamiento' && (
-            <FinancingView
-              financiamientos={financiamientos}
-              pacientes={pacientes}
-              onNewFinancingPlan={() => {
-                setPreselectedPatientForFinancing(null);
-                setShowNewFinancingModal(true);
-              }}
-              onOpenNewPaymentForPatient={(p) => {
-                setPreselectedPatientForPayment(p);
-                setShowNewPaymentModal(true);
-              }}
-              onSelectPatient={handleOpen360ByPatientId}
-            />
-          )}
+            {activeTab === 'financiamiento' && (
+              <FinancingView
+                financiamientos={financiamientos}
+                pacientes={pacientes}
+                onNewFinancingPlan={() => {
+                  setPreselectedPatientForFinancing(null);
+                  setShowNewFinancingModal(true);
+                }}
+                onOpenNewPaymentForPatient={(p) => {
+                  setPreselectedPatientForPayment(p);
+                  setShowNewPaymentModal(true);
+                }}
+                onSelectPatient={handleOpen360ByPatientId}
+              />
+            )}
 
-          {activeTab === 'reintegros' && (
-            <RefundsView
-              reintegros={reintegros}
-              pacientes={pacientes}
-              userRole={currentUser.rol}
-              onRefresh={refreshData}
-              onSelectPatient={(p) => setSelectedPatient360(p)}
-            />
-          )}
+            {activeTab === 'reintegros' && (
+              <RefundsView
+                reintegros={reintegros}
+                pacientes={pacientes}
+                userRole={currentUser.rol}
+                onRefresh={refreshData}
+                onSelectPatient={(p) => setSelectedPatient360(p)}
+              />
+            )}
 
-          {activeTab === 'pagos' && (
-            <PaymentsView
-              pagos={pagos}
-              onNewPayment={() => {
-                setPreselectedPatientForPayment(null);
-                setShowNewPaymentModal(true);
-              }}
-              onPrintReceipt={setSelectedReceiptForPrint}
-            />
-          )}
+            {activeTab === 'pagos' && (
+              <PaymentsView
+                pagos={pagos}
+                onNewPayment={() => {
+                  setPreselectedPatientForPayment(null);
+                  setShowNewPaymentModal(true);
+                }}
+                onPrintReceipt={setSelectedReceiptForPrint}
+              />
+            )}
 
-          {activeTab === 'usuarios' && (
-            <UsersView
-              usuarios={usuarios}
-              currentUser={currentUser}
-              onNewUser={() => setShowNewUserModal(true)}
-              onUpdateUser={handleUpdateUser}
-            />
-          )}
+            {activeTab === 'usuarios' && (
+              <UsersView
+                usuarios={usuarios}
+                currentUser={currentUser}
+                onNewUser={() => setShowNewUserModal(true)}
+                onUpdateUser={handleUpdateUser}
+              />
+            )}
 
-          {activeTab === 'google-sheets' && (
-            <GasView onDataSyncSuccess={refreshData} />
-          )}
+            {activeTab === 'google-sheets' && (
+              <GasView onDataSyncSuccess={refreshData} />
+            )}
 
-          {activeTab === 'configuracion' && (
-            <SettingsView />
-          )}
+            {activeTab === 'configuracion' && (
+              <SettingsView />
+            )}
+          </ErrorBoundary>
         </main>
 
       </div>

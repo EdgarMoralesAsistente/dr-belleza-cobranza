@@ -14,7 +14,8 @@ import {
   Plus,
   ArrowLeft,
   FileText,
-  Eye
+  Eye,
+  AlertTriangle
 } from 'lucide-react';
 import { Paciente, FinanciamientoCirugia } from '../types';
 import { StorageService } from '../services/storageService';
@@ -47,6 +48,10 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
   // Pestañas del modal de registro
   const [activeStep, setActiveStep] = useState<'datos' | 'financiamiento'>('datos');
+
+  // Control de errores de validación (campos obligatorios)
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
 
   // Vista Previa de Ficha Médica PDF
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -107,6 +112,9 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
       setSelectedProcIds(selectedProcIds.filter(id => id !== procId));
     } else {
       setSelectedProcIds([...selectedProcIds, procId]);
+      if (invalidFields['procedimientos']) {
+        setInvalidFields(prev => ({ ...prev, procedimientos: false }));
+      }
     }
   };
 
@@ -177,19 +185,106 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
     setShowNewCouponForm(false);
   };
 
+  const validateModal = (): { isValid: boolean; errors: string[]; missingStep: 'datos' | 'financiamiento' | null } => {
+    const errors: string[] = [];
+    const fieldFlags: Record<string, boolean> = {};
+    let missingStep: 'datos' | 'financiamiento' | null = null;
+
+    // 1. Datos Personales
+    if (!cedula.trim()) {
+      errors.push('El Documento / Cédula es obligatorio.');
+      fieldFlags['cedula'] = true;
+      if (!missingStep) missingStep = 'datos';
+    }
+
+    if (!nombre.trim()) {
+      errors.push('El Nombre y Apellido Completo es obligatorio.');
+      fieldFlags['nombre'] = true;
+      if (!missingStep) missingStep = 'datos';
+    }
+
+    const phoneDigits = telefono.replace(/^\+\d+/, '').replace(/\D/g, '');
+    if (!telefono.trim() || phoneDigits.length < 5) {
+      errors.push('El Teléfono de Contacto válido es obligatorio (mínimo 5 dígitos).');
+      fieldFlags['telefono'] = true;
+      if (!missingStep) missingStep = 'datos';
+    }
+
+    if (!correo.trim()) {
+      errors.push('El Correo Electrónico es obligatorio.');
+      fieldFlags['correo'] = true;
+      if (!missingStep) missingStep = 'datos';
+    } else if (!correo.includes('@') || !correo.includes('.')) {
+      errors.push('Ingrese un Correo Electrónico válido (ej: paciente@gmail.com).');
+      fieldFlags['correo'] = true;
+      if (!missingStep) missingStep = 'datos';
+    }
+
+    if (!promocion.trim()) {
+      errors.push('La Campaña / Promoción de Origen es obligatoria.');
+      fieldFlags['promocion'] = true;
+      if (!missingStep) missingStep = 'datos';
+    }
+
+    if (!direccion.trim()) {
+      errors.push('La Dirección de Residencia es obligatoria.');
+      fieldFlags['direccion'] = true;
+      if (!missingStep) missingStep = 'datos';
+    }
+
+    // 2. Combo Quirúrgico y Financiamiento
+    if (selectedProcIds.length === 0) {
+      errors.push('Debe seleccionar al menos una cirugía del Combo Quirúrgico.');
+      fieldFlags['procedimientos'] = true;
+      if (!missingStep) missingStep = 'financiamiento';
+    }
+
+    if (tipoPago === 'Financiamiento') {
+      if (montoInicial === '' || montoInicial === null || isNaN(Number(montoInicial))) {
+        errors.push('El Abono Inicial / Cuota Inicial es obligatorio.');
+        fieldFlags['montoInicial'] = true;
+        if (!missingStep) missingStep = 'financiamiento';
+      }
+
+      if (!fechaEstimadaCirugia.trim()) {
+        errors.push('La Fecha Estimada de Cirugía es obligatoria.');
+        fieldFlags['fechaEstimadaCirugia'] = true;
+        if (!missingStep) missingStep = 'financiamiento';
+      }
+    }
+
+    setFormErrors(errors);
+    setInvalidFields(fieldFlags);
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      missingStep
+    };
+  };
+
+  const handleNextStep = () => {
+    const val = validateModal();
+    if (val.missingStep === 'datos') {
+      setActiveStep('datos');
+    } else {
+      setActiveStep('financiamiento');
+    }
+  };
+
   const getConstructedPatient = (): Paciente => {
     return {
       id: StorageService.generatePatientId(),
-      cedula: cedula.trim() || 'V-00000000',
-      nombre: nombre.trim() || 'Paciente Nueva',
+      cedula: cedula.trim(),
+      nombre: nombre.trim(),
       genero,
-      correo: correo.trim() || 'paciente@gmail.com',
-      telefono: telefono.trim() || '+58 412 000-0000',
+      correo: correo.trim(),
+      telefono: telefono.trim(),
       contactada: 'Contactada - Ficha Registrada',
       fecha: new Date().toISOString().split('T')[0],
       promocion,
-      procedimiento: comboNombreConsolidado || 'Mamoplastia de Aumento',
-      direccion: direccion.trim() || 'Sin dirección registrada'
+      procedimiento: comboNombreConsolidado || 'Procedimiento Quirúrgico',
+      direccion: direccion.trim()
     };
   };
 
@@ -210,7 +305,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
       descuentoMonto,
       costoTotalCirugia,
       cuotasTotales: cuotasActuales,
-      montoAbonado: Number(montoInicial),
+      montoAbonado: Number(montoInicial || 0),
       saldoPendiente,
       montoCuotaMensual: montoCuotaEst,
       estadoFinanciero: 'Al día',
@@ -221,7 +316,13 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !cedula.trim()) return;
+    const validation = validateModal();
+    if (!validation.isValid) {
+      if (validation.missingStep) {
+        setActiveStep(validation.missingStep);
+      }
+      return;
+    }
 
     const newPatient = getConstructedPatient();
     const newPlan = incluirFinanciamiento ? getConstructedPlan(newPatient.id) : undefined;
@@ -231,6 +332,13 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
   };
 
   const handlePrintPDF = () => {
+    const validation = validateModal();
+    if (!validation.isValid) {
+      if (validation.missingStep) {
+        setActiveStep(validation.missingStep);
+      }
+      return;
+    }
     setShowPrintPreview(true);
   };
 
@@ -581,49 +689,82 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
           <button
             type="button"
             onClick={() => setActiveStep('datos')}
-            className={`px-4 py-2 font-bold text-xs rounded-t-lg transition-all cursor-pointer ${
+            className={`px-4 py-2 font-bold text-xs rounded-t-lg transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeStep === 'datos'
                 ? 'bg-white text-teal-800 border-t-2 border-teal-600 shadow-2xs'
                 : 'text-slate-500 hover:bg-slate-200/60'
             }`}
           >
-            1. Datos Personales
+            <span>1. Datos Personales *</span>
+            {(invalidFields['cedula'] || invalidFields['nombre'] || invalidFields['telefono'] || invalidFields['correo'] || invalidFields['direccion'] || invalidFields['promocion']) && (
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+            )}
           </button>
           <button
             type="button"
             onClick={() => setActiveStep('financiamiento')}
-            className={`px-4 py-2 font-bold text-xs rounded-t-lg transition-all cursor-pointer ${
+            className={`px-4 py-2 font-bold text-xs rounded-t-lg transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeStep === 'financiamiento'
                 ? 'bg-white text-teal-800 border-t-2 border-teal-600 shadow-2xs'
                 : 'text-slate-500 hover:bg-slate-200/60'
             }`}
           >
-            2. Combo Quirúrgico & Financiamiento
+            <span>2. Combo Quirúrgico & Financiamiento *</span>
+            {(invalidFields['procedimientos'] || invalidFields['montoInicial'] || invalidFields['fechaEstimadaCirugia']) && (
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+            )}
           </button>
         </div>
 
         {/* FORMULARIO */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
           
+          {/* BANNER DE ERRORES / CAMPOS OBLIGATORIOS FALTANTES */}
+          {formErrors.length > 0 && (
+            <div className="p-3 bg-rose-50/90 border border-rose-300 text-rose-900 rounded-xl space-y-1.5 text-xs animate-in fade-in duration-150 shadow-2xs">
+              <div className="flex items-center space-x-2 font-bold text-rose-950">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Todos los campos de la modal son obligatorios. Falta completar:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] font-semibold text-rose-800 pl-1">
+                {formErrors.map((err, idx) => (
+                  <li key={idx}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* PASO 1: DATOS PERSONALES */}
           {activeStep === 'datos' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Documento / Cédula *</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Documento / Cédula <span className="text-rose-600 font-extrabold">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     placeholder="Ej: V-19283012"
                     value={cedula}
-                    onChange={(e) => setCedula(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+                    onChange={(e) => {
+                      setCedula(e.target.value);
+                      if (invalidFields['cedula']) setInvalidFields(prev => ({ ...prev, cedula: false }));
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-hidden focus:ring-2 font-semibold text-slate-900 ${
+                      invalidFields['cedula']
+                        ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                        : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-600'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Género</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Género <span className="text-rose-600 font-extrabold">*</span>
+                  </label>
                   <select
+                    required
                     value={genero}
                     onChange={(e: any) => setGenero(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
@@ -636,45 +777,81 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Nombres y Apellidos Completos *</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Nombres y Apellidos Completos <span className="text-rose-600 font-extrabold">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   placeholder="Ej: María Alejandra Pérez"
                   value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900 text-sm"
+                  onChange={(e) => {
+                    setNombre(e.target.value);
+                    if (invalidFields['nombre']) setInvalidFields(prev => ({ ...prev, nombre: false }));
+                  }}
+                  className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-hidden focus:ring-2 font-semibold text-slate-900 text-sm ${
+                    invalidFields['nombre']
+                      ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                      : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-600'
+                  }`}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Teléfono de Contacto *</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Teléfono de Contacto <span className="text-rose-600 font-extrabold">*</span>
+                  </label>
                   <CountryPhoneInput
+                    required
+                    hasError={!!invalidFields['telefono']}
                     value={telefono}
-                    onChange={setTelefono}
+                    onChange={(val) => {
+                      setTelefono(val);
+                      if (invalidFields['telefono']) setInvalidFields(prev => ({ ...prev, telefono: false }));
+                    }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Correo Electrónico</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Correo Electrónico <span className="text-rose-600 font-extrabold">*</span>
+                  </label>
                   <input
                     type="email"
+                    required
                     placeholder="paciente@gmail.com"
                     value={correo}
-                    onChange={(e) => setCorreo(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+                    onChange={(e) => {
+                      setCorreo(e.target.value);
+                      if (invalidFields['correo']) setInvalidFields(prev => ({ ...prev, correo: false }));
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-hidden focus:ring-2 font-semibold text-slate-900 ${
+                      invalidFields['correo']
+                        ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                        : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-600'
+                    }`}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Campaña / Promoción Origen</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Campaña / Promoción Origen <span className="text-rose-600 font-extrabold">*</span>
+                  </label>
                   <select
+                    required
                     value={promocion}
-                    onChange={(e) => setPromocion(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+                    onChange={(e) => {
+                      setPromocion(e.target.value);
+                      if (invalidFields['promocion']) setInvalidFields(prev => ({ ...prev, promocion: false }));
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-hidden focus:ring-2 font-semibold text-slate-900 ${
+                      invalidFields['promocion']
+                        ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                        : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-600'
+                    }`}
                   >
                     <option value="Instagram - Campaña Estética">Instagram - Campaña Estética</option>
                     <option value="TikTok - Dra. Belleza">TikTok - Dra. Belleza</option>
@@ -685,13 +862,23 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Dirección de Residencia</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Dirección de Residencia <span className="text-rose-600 font-extrabold">*</span>
+                  </label>
                   <input
                     type="text"
-                    placeholder="Ciudad / Municipio / Zona"
+                    required
+                    placeholder="Ej: Av. Principal, Urb. El Bosque, Caracas"
                     value={direccion}
-                    onChange={(e) => setDireccion(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+                    onChange={(e) => {
+                      setDireccion(e.target.value);
+                      if (invalidFields['direccion']) setInvalidFields(prev => ({ ...prev, direccion: false }));
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-hidden focus:ring-2 font-semibold text-slate-900 ${
+                      invalidFields['direccion']
+                        ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                        : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-600'
+                    }`}
                   />
                 </div>
               </div>
@@ -699,8 +886,8 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
               <div className="pt-3 border-t border-slate-100 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setActiveStep('financiamiento')}
-                  className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-all cursor-pointer"
+                  onClick={handleNextStep}
+                  className="px-4 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-all cursor-pointer shadow-2xs"
                 >
                   Siguiente: Configurar Combo & Plan →
                 </button>
@@ -717,7 +904,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Tipo de Pago Proyectado
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => handleSelectTipoPago('Contado')}
@@ -750,7 +937,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
               <div className="space-y-2 border-t border-slate-100 pt-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Combo Quirúrgico (Suma Automática de Costos)
+                    Combo Quirúrgico (Seleccionar al menos 1 procedimiento) <span className="text-rose-600 font-extrabold">*</span>
                   </label>
                   
                   <button
@@ -765,13 +952,13 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
                 {showCustomProcForm && (
                   <div className="p-3 bg-teal-50 rounded-xl border border-teal-200 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <input
                         type="text"
                         placeholder="Cirugía Especial"
                         value={customProcName}
                         onChange={(e) => setCustomProcName(e.target.value)}
-                        className="col-span-2 px-2.5 py-1.5 bg-white border border-teal-300 rounded-lg text-xs"
+                        className="sm:col-span-2 px-2.5 py-1.5 bg-white border border-teal-300 rounded-lg text-xs"
                       />
                       <input
                         type="number"
@@ -791,7 +978,11 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border ${
+                  invalidFields['procedimientos']
+                    ? 'border-rose-400 bg-rose-50/30 ring-2 ring-rose-200'
+                    : 'border-slate-200'
+                }`}>
                   {catalog.map(proc => {
                     const isSelected = selectedProcIds.includes(proc.id);
                     return (
@@ -844,7 +1035,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
               <div className="space-y-2 border-t border-slate-100 pt-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Cupón de Descuento
+                    Cupón de Descuento <span className="text-rose-600 font-extrabold">*</span>
                   </label>
                   <button
                     type="button"
@@ -858,7 +1049,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
                 {showNewCouponForm && (
                   <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 space-y-2">
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                       <input
                         type="text"
                         placeholder="CÓDIGO"
@@ -916,7 +1107,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
               {tipoPago === 'Financiamiento' && (
                 <div className="space-y-3 border-t border-slate-100 pt-3">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-purple-700">
-                    Plan de Financiamiento Elegido (Plazo y Cuotas) *
+                    Plan de Financiamiento Elegido (Plazo y Cuotas) <span className="text-rose-600 font-extrabold">*</span>
                   </label>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
@@ -942,29 +1133,45 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                     })}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                        Abono Inicial / Cuota Inicial ($ USD) *
+                        Abono Inicial / Cuota Inicial ($ USD) <span className="text-rose-600 font-extrabold">*</span>
                       </label>
                       <input
                         type="number"
+                        required
                         min={0}
                         value={montoInicial}
-                        onChange={(e) => setMontoInicial(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
+                        onChange={(e) => {
+                          setMontoInicial(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)));
+                          if (invalidFields['montoInicial']) setInvalidFields(prev => ({ ...prev, montoInicial: false }));
+                        }}
+                        className={`w-full px-3 py-2 bg-slate-50 border rounded-lg font-bold text-slate-900 text-xs focus:ring-2 ${
+                          invalidFields['montoInicial']
+                            ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                            : 'border-slate-200 focus:ring-purple-500/20 focus:border-purple-600'
+                        }`}
                       />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                        Fecha Estimada de Cirugía
+                        Fecha Estimada de Cirugía <span className="text-rose-600 font-extrabold">*</span>
                       </label>
                       <input
                         type="date"
+                        required
                         value={fechaEstimadaCirugia}
-                        onChange={(e) => setFechaEstimadaCirugia(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
+                        onChange={(e) => {
+                          setFechaEstimadaCirugia(e.target.value);
+                          if (invalidFields['fechaEstimadaCirugia']) setInvalidFields(prev => ({ ...prev, fechaEstimadaCirugia: false }));
+                        }}
+                        className={`w-full px-3 py-2 bg-slate-50 border rounded-lg font-bold text-slate-900 text-xs focus:ring-2 ${
+                          invalidFields['fechaEstimadaCirugia']
+                            ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500 ring-2 ring-rose-200'
+                            : 'border-slate-200 focus:ring-purple-500/20 focus:border-purple-600'
+                        }`}
                       />
                     </div>
                   </div>

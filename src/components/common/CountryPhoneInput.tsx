@@ -49,13 +49,17 @@ interface CountryPhoneInputProps {
   onChange: (fullFormattedPhone: string) => void;
   placeholder?: string;
   className?: string;
+  required?: boolean;
+  hasError?: boolean;
 }
 
 export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
   value,
   onChange,
   placeholder,
-  className = ''
+  className = '',
+  required = false,
+  hasError = false
 }) => {
   // Parse initial country and number from `value` string
   const parsePhoneValue = (val: string) => {
@@ -149,10 +153,15 @@ export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
         <div className="relative flex-1">
           <input
             type="tel"
+            required={required}
             placeholder={placeholder || selectedCountry.format}
             value={phoneNumber}
             onChange={handleNumberChange}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-bold text-slate-900 text-xs tracking-wide"
+            className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-hidden focus:ring-2 font-bold text-slate-900 text-xs tracking-wide ${
+              hasError
+                ? 'border-rose-400 bg-rose-50/50 focus:ring-rose-500/30 focus:border-rose-500'
+                : 'border-slate-200 focus:ring-teal-500/20 focus:border-teal-600'
+            }`}
           />
         </div>
 

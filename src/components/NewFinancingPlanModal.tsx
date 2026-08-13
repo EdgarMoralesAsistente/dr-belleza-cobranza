@@ -306,7 +306,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
               1. Seleccionar Tipo de Pago *
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleSelectTipoPago('Contado')}

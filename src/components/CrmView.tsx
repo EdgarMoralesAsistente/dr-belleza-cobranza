@@ -70,18 +70,22 @@ export const CrmView: React.FC<CrmViewProps> = ({
   };
   const endOfWeekStr = getEndOfWeekDateStr();
 
-  const filteredActividades = actividades.filter(a => {
+  const filteredActividades = (actividades || []).filter(a => {
+    if (!a) return false;
+    const desc = (a.descripcion || '').toString();
+    const tipo = (a.tipoActividad || '').toString();
+
     let matchesType = true;
     if (filterType === 'Cobros') {
-      matchesType = a.descripcion.includes('Cobro de Cuota') || a.tipoActividad === 'Recordatorio de Pago';
+      matchesType = desc.includes('Cobro de Cuota') || tipo === 'Recordatorio de Pago';
     } else if (filterType === 'Reintegros') {
-      matchesType = a.descripcion.includes('Reintegro') || a.descripcion.includes('Devolución');
+      matchesType = desc.includes('Reintegro') || desc.includes('Devolución');
     } else if (filterType === 'Citas') {
-      matchesType = a.tipoActividad === 'Cita' || a.descripcion.includes('Intervención') || a.descripcion.includes('Quirúrgica');
+      matchesType = tipo === 'Cita' || desc.includes('Intervención') || desc.includes('Quirúrgica');
     } else if (filterType === 'Llamadas') {
-      matchesType = a.tipoActividad === 'Llamada' || a.tipoActividad === 'Seguimiento Postquirúrgico';
+      matchesType = tipo === 'Llamada' || tipo === 'Seguimiento Postquirúrgico';
     } else if (filterType !== 'Todos') {
-      matchesType = a.tipoActividad === filterType;
+      matchesType = tipo === filterType;
     }
 
     const matchesStatus =
@@ -101,55 +105,60 @@ export const CrmView: React.FC<CrmViewProps> = ({
     let matchesSearch = true;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const paciente = pacientes.find(p => p.id === a.pacienteId);
-      const pName = paciente ? paciente.nombre.toLowerCase() : '';
+      const paciente = (pacientes || []).find(
+        p => p && (p.id === a.pacienteId || p.cedula === a.pacienteId || (p.nombre && a.pacienteId && p.nombre.toLowerCase() === a.pacienteId.toLowerCase()))
+      );
+      const pName = paciente && paciente.nombre ? paciente.nombre.toLowerCase() : '';
+      const pId = (a.pacienteId || '').toLowerCase();
       matchesSearch =
-        a.descripcion.toLowerCase().includes(q) ||
-        a.tipoActividad.toLowerCase().includes(q) ||
+        desc.toLowerCase().includes(q) ||
+        tipo.toLowerCase().includes(q) ||
         pName.includes(q) ||
-        a.pacienteId.toLowerCase().includes(q);
+        pId.includes(q);
     }
 
     return matchesType && matchesStatus && matchesDate && matchesSearch;
   });
 
-  const alarmasHoyOVencidas = actividades.filter(
-    a => a.alarma && a.estado === 'Pendiente' && a.fechaProgramada <= todayStr
+  const alarmasHoyOVencidas = (actividades || []).filter(
+    a => a && a.alarma && a.estado === 'Pendiente' && a.fechaProgramada <= todayStr
   );
 
-  const cobrosPendientesCount = actividades.filter(
-    a => a.estado === 'Pendiente' && (a.descripcion.includes('Cobro') || a.tipoActividad === 'Recordatorio de Pago') && !a.descripcion.includes('Reintegro')
+  const cobrosPendientesCount = (actividades || []).filter(
+    a => a && a.estado === 'Pendiente' && (((a.descripcion || '').includes('Cobro')) || a.tipoActividad === 'Recordatorio de Pago') && !(a.descripcion || '').includes('Reintegro')
   ).length;
 
-  const reintegrosPendientesCount = actividades.filter(
-    a => a.estado === 'Pendiente' && (a.descripcion.includes('Reintegro') || a.descripcion.includes('Devolución'))
+  const reintegrosPendientesCount = (actividades || []).filter(
+    a => a && a.estado === 'Pendiente' && ((a.descripcion || '').includes('Reintegro') || (a.descripcion || '').includes('Devolución'))
   ).length;
 
-  const citasHoyCount = actividades.filter(
-    a => a.fechaProgramada === todayStr && (a.tipoActividad === 'Cita' || a.descripcion.includes('Quirúrgica'))
+  const citasHoyCount = (actividades || []).filter(
+    a => a && a.fechaProgramada === todayStr && (a.tipoActividad === 'Cita' || (a.descripcion || '').includes('Quirúrgica'))
   ).length;
 
   const toggleEstado = (act: ActividadCRM) => {
+    if (!act) return;
     const nuevoEstado = act.estado === 'Pendiente' ? 'Realizada' : 'Pendiente';
     onUpdateActivity({ ...act, estado: nuevoEstado });
   };
 
   const createGoogleCalendarUrl = (act: ActividadCRM, pacienteName: string) => {
-    const dateParts = act.fechaProgramada.split('-');
-    const timeParts = act.hora ? act.hora.split(':') : ['09', '00'];
+    if (!act || !act.fechaProgramada) return '#';
+    const dateParts = String(act.fechaProgramada).split('-');
+    const timeParts = act.hora ? String(act.hora).split(':') : ['09', '00'];
     if (dateParts.length !== 3) return '#';
     const y = dateParts[0];
     const m = dateParts[1];
     const d = dateParts[2];
-    const hour = timeParts[0].padStart(2, '0');
-    const minute = timeParts[1] ? timeParts[1].padStart(2, '0') : '00';
+    const hour = (timeParts[0] || '09').padStart(2, '0');
+    const minute = (timeParts[1] || '00').substring(0, 2).padStart(2, '0');
 
     const startISO = `${y}${m}${d}T${hour}${minute}00`;
-    const endHour = String(Math.min(23, parseInt(hour, 10) + 1)).padStart(2, '0');
+    const endHour = String(Math.min(23, (parseInt(hour, 10) || 9) + 1)).padStart(2, '0');
     const endISO = `${y}${m}${d}T${endHour}${minute}00`;
 
-    const title = `[Clínica Dr. Belleza] ${act.tipoActividad}: ${pacienteName}`;
-    const details = `Actividad CRM - Clínica Dr. Belleza\nTipo: ${act.tipoActividad}\nPaciente: ${pacienteName}\nDetalles: ${act.descripcion}`;
+    const title = `[Clínica Dr. Belleza] ${act.tipoActividad || 'Actividad'}: ${pacienteName || 'Paciente'}`;
+    const details = `Actividad CRM - Clínica Dr. Belleza\nTipo: ${act.tipoActividad || 'Actividad'}\nPaciente: ${pacienteName || 'Paciente'}\nDetalles: ${act.descripcion || ''}`;
 
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&dates=${startISO}/${endISO}`;
   };
@@ -415,11 +424,17 @@ export const CrmView: React.FC<CrmViewProps> = ({
               </div>
             ) : (
               filteredActividades.map((act) => {
-                const paciente = pacientes.find(p => p.id === act.pacienteId);
+                if (!act) return null;
+                const paciente = (pacientes || []).find(
+                  p => p && (p.id === act.pacienteId || p.cedula === act.pacienteId || (p.nombre && act.pacienteId && p.nombre.toLowerCase() === act.pacienteId.toLowerCase()))
+                );
+                const desc = (act.descripcion || '').toString();
+                const tipo = (act.tipoActividad || '').toString();
+
                 const isOverdue = act.estado === 'Pendiente' && act.fechaProgramada <= todayStr;
-                const isRefund = act.descripcion.includes('Reintegro') || act.descripcion.includes('Devolución');
-                const isCobro = act.descripcion.includes('Cobro de Cuota') || act.tipoActividad === 'Recordatorio de Pago';
-                const isSurgery = act.tipoActividad === 'Cita' || act.descripcion.includes('Quirúrgica');
+                const isRefund = desc.includes('Reintegro') || desc.includes('Devolución');
+                const isCobro = desc.includes('Cobro de Cuota') || tipo === 'Recordatorio de Pago';
+                const isSurgery = tipo === 'Cita' || desc.includes('Quirúrgica');
 
                 return (
                   <div

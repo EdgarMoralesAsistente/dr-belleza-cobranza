@@ -430,7 +430,7 @@ export const CrmKanbanView: React.FC<CrmKanbanViewProps> = ({
                             <div className="flex items-center space-x-1 text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-medium border border-purple-100 w-full justify-between">
                               <span className="text-[10px] uppercase font-bold text-purple-600">Plan Fin:</span>
                               <span className="font-bold text-purple-900">
-                                ${finPlan.saldoPendiente.toLocaleString()} USD pend.
+                                ${(finPlan.saldoPendiente || 0).toLocaleString()} USD pend.
                               </span>
                             </div>
                           ) : totalAbonado > 0 ? (

@@ -116,18 +116,22 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
   }
 
   // Filter activities by user criteria
-  const filteredActividades = actividades.filter(a => {
+  const filteredActividades = (actividades || []).filter(a => {
+    if (!a) return false;
+    const desc = (a.descripcion || '').toString();
+    const tipo = (a.tipoActividad || '').toString();
+
     let matchesType = true;
     if (filterType === 'Cobros') {
-      matchesType = a.descripcion.includes('Cobro de Cuota') || (a.tipoActividad === 'Recordatorio de Pago' && !a.descripcion.includes('Reintegro'));
+      matchesType = desc.includes('Cobro de Cuota') || (tipo === 'Recordatorio de Pago' && !desc.includes('Reintegro'));
     } else if (filterType === 'Reintegros') {
-      matchesType = a.descripcion.includes('Reintegro') || a.descripcion.includes('Devolución');
+      matchesType = desc.includes('Reintegro') || desc.includes('Devolución');
     } else if (filterType === 'Citas') {
-      matchesType = a.tipoActividad === 'Cita' || a.descripcion.includes('Intervención') || a.descripcion.includes('Quirúrgica');
+      matchesType = tipo === 'Cita' || desc.includes('Intervención') || desc.includes('Quirúrgica');
     } else if (filterType === 'Llamadas') {
-      matchesType = a.tipoActividad === 'Llamada' || a.tipoActividad === 'Seguimiento Postquirúrgico';
+      matchesType = tipo === 'Llamada' || tipo === 'Seguimiento Postquirúrgico';
     } else if (filterType !== 'Todos') {
-      matchesType = a.tipoActividad === filterType;
+      matchesType = tipo === filterType;
     }
 
     const matchesStatus =
@@ -141,51 +145,61 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
   // Group filtered activities by dateStr
   const activitiesByDate: Record<string, ActividadCRM[]> = {};
   filteredActividades.forEach(a => {
-    if (!activitiesByDate[a.fechaProgramada]) {
-      activitiesByDate[a.fechaProgramada] = [];
+    if (a && a.fechaProgramada) {
+      if (!activitiesByDate[a.fechaProgramada]) {
+        activitiesByDate[a.fechaProgramada] = [];
+      }
+      activitiesByDate[a.fechaProgramada].push(a);
     }
-    activitiesByDate[a.fechaProgramada].push(a);
   });
 
   const selectedDayActivities = activitiesByDate[selectedDateStr] || [];
 
   const toggleEstado = (act: ActividadCRM) => {
+    if (!act) return;
     const nuevoEstado = act.estado === 'Pendiente' ? 'Realizada' : 'Pendiente';
     onUpdateActivity({ ...act, estado: nuevoEstado });
   };
 
   // Google Calendar URL generator
   const createGoogleCalendarUrl = (act: ActividadCRM, pacienteName: string) => {
-    const dateParts = act.fechaProgramada.split('-');
-    const timeParts = act.hora ? act.hora.split(':') : ['09', '00'];
+    if (!act || !act.fechaProgramada) return '#';
+    const dateParts = String(act.fechaProgramada).split('-');
+    const timeParts = act.hora ? String(act.hora).split(':') : ['09', '00'];
     if (dateParts.length !== 3) return '#';
     const y = dateParts[0];
     const m = dateParts[1];
     const d = dateParts[2];
-    const hour = timeParts[0].padStart(2, '0');
-    const minute = timeParts[1] ? timeParts[1].padStart(2, '0') : '00';
+    const hour = (timeParts[0] || '09').padStart(2, '0');
+    const minute = (timeParts[1] || '00').substring(0, 2).padStart(2, '0');
 
     const startISO = `${y}${m}${d}T${hour}${minute}00`;
-    const endHour = String(Math.min(23, parseInt(hour, 10) + 1)).padStart(2, '0');
+    const endHour = String(Math.min(23, (parseInt(hour, 10) || 9) + 1)).padStart(2, '0');
     const endISO = `${y}${m}${d}T${endHour}${minute}00`;
 
-    const title = `[Clínica Dr. Belleza] ${act.tipoActividad}: ${pacienteName}`;
-    const details = `Actividad CRM - Clínica Dr. Belleza\nTipo: ${act.tipoActividad}\nPaciente: ${pacienteName}\nDetalles: ${act.descripcion}`;
+    const title = `[Clínica Dr. Belleza] ${act.tipoActividad || 'Actividad'}: ${pacienteName || 'Paciente'}`;
+    const details = `Actividad CRM - Clínica Dr. Belleza\nTipo: ${act.tipoActividad || 'Actividad'}\nPaciente: ${pacienteName || 'Paciente'}\nDetalles: ${act.descripcion || ''}`;
 
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&dates=${startISO}/${endISO}`;
   };
 
   // Helper for chip labels
   const getEventChipInfo = (act: ActividadCRM) => {
-    const paciente = pacientes.find(p => p.id === act.pacienteId);
-    const pName = paciente ? paciente.nombre.split(' ')[0] : 'Paciente';
+    if (!act) return { label: 'Evento', bgClass: 'bg-slate-100 text-slate-700' };
+    const paciente = (pacientes || []).find(
+      p => p && (p.id === act.pacienteId || p.cedula === act.pacienteId || (p.nombre && act.pacienteId && p.nombre.toLowerCase() === act.pacienteId.toLowerCase()))
+    );
+    const pName = paciente && paciente.nombre ? String(paciente.nombre).split(' ')[0] : 'Paciente';
 
-    const isRefund = act.descripcion.includes('Reintegro') || act.descripcion.includes('Devolución');
-    const isCobro = act.descripcion.includes('Cobro de Cuota') || (act.tipoActividad === 'Recordatorio de Pago' && !isRefund);
-    const isSurgery = act.tipoActividad === 'Cita' || act.descripcion.includes('Quirúrgica');
+    const desc = (act.descripcion || '').toString();
+    const tipo = (act.tipoActividad || '').toString();
+
+    const isRefund = desc.includes('Reintegro') || desc.includes('Devolución');
+    const isCobro = desc.includes('Cobro de Cuota') || (tipo === 'Recordatorio de Pago' && !isRefund);
+    const isSurgery = tipo === 'Cita' || desc.includes('Quirúrgica');
 
     if (isRefund) {
-      const match = act.descripcion.match(/Cuota #\d+\/\d+/);
+      const match = desc.match(/Cuota #\d+\/\d+/);
       const label = match ? `🚨 Reint. ${match[0]}` : `🚨 Reintegro`;
       return {
         label: `${label} (${pName})`,
@@ -193,7 +207,7 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
       };
     }
     if (isCobro) {
-      const match = act.descripcion.match(/Cuota #\d+\/\d+/);
+      const match = desc.match(/Cuota #\d+\/\d+/);
       const label = match ? `🔔 Cobro ${match[0]}` : `🔔 Cobro`;
       return {
         label: `${label} (${pName})`,
@@ -208,7 +222,7 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
     }
 
     return {
-      label: `${act.tipoActividad}: ${pName}`,
+      label: `${tipo || 'Gestión'}: ${pName}`,
       bgClass: 'bg-teal-100 text-teal-900 border-teal-200'
     };
   };
@@ -432,12 +446,18 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
           ) : (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
               {selectedDayActivities.map((act) => {
-                const paciente = pacientes.find(p => p.id === act.pacienteId);
-                const pName = paciente ? paciente.nombre : act.pacienteId;
+                if (!act) return null;
+                const paciente = (pacientes || []).find(
+                  p => p && (p.id === act.pacienteId || p.cedula === act.pacienteId || (p.nombre && act.pacienteId && p.nombre.toLowerCase() === act.pacienteId.toLowerCase()))
+                );
+                const pName = paciente ? paciente.nombre : (act.pacienteId || 'Paciente');
 
-                const isRefund = act.descripcion.includes('Reintegro') || act.descripcion.includes('Devolución');
-                const isCobro = act.descripcion.includes('Cobro de Cuota') || (act.tipoActividad === 'Recordatorio de Pago' && !isRefund);
-                const isSurgery = act.tipoActividad === 'Cita' || act.descripcion.includes('Quirúrgica');
+                const desc = (act.descripcion || '').toString();
+                const tipo = (act.tipoActividad || '').toString();
+
+                const isRefund = desc.includes('Reintegro') || desc.includes('Devolución');
+                const isCobro = desc.includes('Cobro de Cuota') || (tipo === 'Recordatorio de Pago' && !isRefund);
+                const isSurgery = tipo === 'Cita' || desc.includes('Quirúrgica');
 
                 return (
                   <div
