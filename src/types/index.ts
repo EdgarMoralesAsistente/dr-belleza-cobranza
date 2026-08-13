@@ -75,9 +75,31 @@ export interface FinanciamientoCirugia {
   montoAbonado: number;
   saldoPendiente: number;
   montoCuotaMensual?: number;
-  estadoFinanciero: 'Al día' | 'En Mora' | 'Pagado Totalmente';
+  estadoFinanciero: 'Al día' | 'En Mora' | 'Pagado Totalmente' | 'En Reintegro' | 'Reintegro Completado';
   fechaInicio: string;
   fechaEstimadaCirugia: string;
+}
+
+export type EstadoReintegro = 'Pendiente' | 'En Proceso' | 'Parcialmente Pagado' | 'Completado';
+
+export interface Reintegro {
+  reintegroId: string; // Ej: REINT-2026-001
+  planId: string; // ID del Plan de Financiamiento
+  pacienteId: string; // ID del Paciente
+  fechaSolicitud: string; // YYYY-MM-DD
+  fechaAprobacion?: string; // YYYY-MM-DD
+  totalAbonado: number; // Suma de abonos hasta la solicitud
+  gastosAdmin20: number; // 20% retención
+  montoNetoReintegro: number; // 80% monto neto
+  plazoMeses: number; // 1 cuota / 15 días hábiles si <=10 días, o ceil(días/30) hasta 12m
+  esExcepcion10Dias: boolean; // true si solicitud <=10 días del primer abono
+  montoCuotaMensual: number; // Monto por cuota programada
+  montoEfectivamentePagado: number; // Acumulado devuelto
+  saldoPendiente: number; // MontoNetoReintegro - MontoEfectivamentePagado
+  estadoReintegro: EstadoReintegro;
+  fechaEstimadaCulminacion: string; // YYYY-MM-DD
+  observaciones?: string;
+  motivo?: string;
 }
 
 export interface ReciboDigital {

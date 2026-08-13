@@ -9,6 +9,7 @@ import { PaymentsView } from './components/PaymentsView';
 import { UsersView } from './components/UsersView';
 import { GasView } from './components/GasView';
 import { SettingsView } from './components/SettingsView';
+import { RefundsView } from './components/RefundsView';
 
 import { Patient360Modal } from './components/Patient360Modal';
 import { ReceiptModal } from './components/ReceiptModal';
@@ -21,7 +22,7 @@ import { ExecutivePresentationModal } from './components/ExecutivePresentationMo
 import { UserProfileModal } from './components/UserProfileModal';
 import { LoginView } from './components/LoginView';
 
-import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia } from './types';
+import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia, Reintegro } from './types';
 import { StorageService } from './services/storageService';
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [actividades, setActividades] = useState<ActividadCRM[]>([]);
   const [financiamientos, setFinanciamientos] = useState<FinanciamientoCirugia[]>([]);
+  const [reintegros, setReintegros] = useState<Reintegro[]>([]);
 
   // Modales
   const [selectedPatient360, setSelectedPatient360] = useState<Paciente | null>(null);
@@ -59,6 +61,7 @@ export default function App() {
     setUsuarios(StorageService.getUsuarios());
     setActividades(StorageService.getActividades());
     setFinanciamientos(StorageService.getFinanciamientos());
+    setReintegros(StorageService.getReintegros());
   };
 
   useEffect(() => {
@@ -256,6 +259,7 @@ export default function App() {
               pagos={pagos}
               actividades={actividades}
               financiamientos={financiamientos}
+              reintegros={reintegros}
               onSelectPatient={handleOpen360ByPatientId}
               onNavigateToTab={setActiveTab}
             />
@@ -312,6 +316,16 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'reintegros' && (
+            <RefundsView
+              reintegros={reintegros}
+              pacientes={pacientes}
+              userRole={currentUser.rol}
+              onRefresh={refreshData}
+              onSelectPatient={(p) => setSelectedPatient360(p)}
+            />
+          )}
+
           {activeTab === 'pagos' && (
             <PaymentsView
               pagos={pagos}
@@ -350,6 +364,7 @@ export default function App() {
           pagos={pagos}
           actividades={actividades}
           financiamientos={financiamientos}
+          reintegros={reintegros}
           userRole={currentUser.rol}
           onClose={() => setSelectedPatient360(null)}
           onOpenNewPaymentForPatient={(p) => {
@@ -366,6 +381,7 @@ export default function App() {
           }}
           onPrintReceipt={setSelectedReceiptForPrint}
           onDeletePatient={handleDeletePatient}
+          onRefreshData={refreshData}
         />
       )}
 
@@ -378,6 +394,10 @@ export default function App() {
             ((p.nombre || '').toLowerCase() === (selectedReceiptForPrint.nombre || '').toLowerCase() && p.nombre)
           ))}
           financiamiento={financiamientos.find(f => f.pacienteId === selectedReceiptForPrint.id)}
+          reintegro={reintegros.find(r => r && selectedReceiptForPrint && (
+            r.pacienteId === selectedReceiptForPrint.id ||
+            r.reintegroId === selectedReceiptForPrint.referencia
+          ))}
           onClose={() => setSelectedReceiptForPrint(null)}
         />
       )}

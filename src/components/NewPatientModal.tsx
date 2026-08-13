@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Paciente, FinanciamientoCirugia } from '../types';
 import { StorageService } from '../services/storageService';
+import { CountryPhoneInput } from './common/CountryPhoneInput';
 import {
   getActiveCatalog,
   getActiveCoupons,
@@ -648,13 +649,10 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Teléfono de Contacto</label>
-                  <input
-                    type="text"
-                    placeholder="+58 412 123-4567"
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Teléfono de Contacto *</label>
+                  <CountryPhoneInput
                     value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 font-semibold text-slate-900"
+                    onChange={setTelefono}
                   />
                 </div>
 

@@ -1,4 +1,4 @@
-import { Paciente, FinanciamientoCirugia, Pago } from '../types';
+import { Paciente, FinanciamientoCirugia, Pago, Reintegro } from '../types';
 import { StorageService } from './storageService';
 
 export interface ProcedureCatalogItem {
@@ -1024,6 +1024,445 @@ export function printPaymentReceiptPDF(
       <div class="footer-terms">
         <strong>${config.nombreClinica}</strong> — ${config.direccion} — Tel: ${config.telefono} — ${config.email}<br>
         Este recibo electrónico certifica el pago recibido por el concepto arriba descrito. Conservar como comprobante oficial. ${config.terminosReporte}
+      </div>
+
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+          }, 300);
+        };
+      </script>
+
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+}
+
+/**
+ * Función para Imprimir y Exportar a PDF el Recibo Oficial de Egreso / Devolución de Reintegro
+ */
+export function printRefundReceiptPDF(
+  pago: Pago,
+  reintegro?: Reintegro | null,
+  paciente?: Paciente | null
+) {
+  const printWindow = window.open('', '_blank', 'width=950,height=1000');
+  if (!printWindow) return;
+
+  const config = getClinicConfig();
+
+  const fechaImpresion = new Date().toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const montoDevuelto = pago.cargo || pago.abono || 0;
+  const montoDevueltoFormateado = montoDevuelto.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  const totalAbonado = reintegro?.totalAbonado || 0;
+  const gastosAdmin = reintegro?.gastosAdmin20 || 0;
+  const totalReintegroNeto = reintegro?.montoNetoReintegro || montoDevuelto;
+  const totalDevueltoAcumulado = reintegro?.montoEfectivamentePagado || montoDevuelto;
+  const saldoPendienteRestante = reintegro?.saldoPendiente ?? Math.max(0, totalReintegroNeto - totalDevueltoAcumulado);
+  const porcentajeAvance = totalReintegroNeto > 0 
+    ? Math.min(100, Math.round((totalDevueltoAcumulado / totalReintegroNeto) * 100))
+    : 100;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Recibo Oficial de Devolución / Reintegro — ${pago.cod} — ${pago.nombre}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+      <style>
+        @page {
+          size: letter;
+          margin: 12mm;
+        }
+        * {
+          box-sizing: border-box;
+        }
+        body {
+          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          color: #0f172a;
+          margin: 0;
+          padding: 24px;
+          background-color: #ffffff;
+          font-size: 12px;
+          line-height: 1.5;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        /* HEADER BANNER DARK SLATE & AMBER */
+        .brand-header {
+          background-color: #0f172a;
+          color: #ffffff;
+          padding: 20px 24px;
+          border-radius: 12px;
+          border-bottom: 4px solid #d97706;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 22px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .clinic-brand {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .clinic-logo-icon {
+          width: 44px;
+          height: 44px;
+          background-color: #d97706;
+          color: #ffffff;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Playfair Display', Georgia, serif;
+          font-weight: 700;
+          font-size: 20px;
+          box-shadow: inset 0 0 10px rgba(0,0,0,0.15);
+        }
+        .clinic-title {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 20px;
+          font-weight: 700;
+          color: #ffffff;
+          letter-spacing: -0.3px;
+          margin: 0;
+        }
+        .clinic-subtitle {
+          font-size: 11px;
+          color: #fcd34d;
+          font-weight: 600;
+          margin-top: 2px;
+        }
+        .doc-badge {
+          background-color: #1e293b;
+          border: 1px solid #334155;
+          color: #ffffff;
+          padding: 8px 14px;
+          border-radius: 10px;
+          text-align: right;
+        }
+        .doc-badge-id {
+          font-size: 11px;
+          font-weight: 800;
+          color: #fcd34d;
+          letter-spacing: 0.5px;
+        }
+        .doc-badge-date {
+          font-size: 10px;
+          color: #94a3b8;
+          margin-top: 2px;
+        }
+
+        .section-title {
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          color: #b45309;
+          background-color: #fffbe2;
+          padding: 8px 12px;
+          border-left: 4px solid #d97706;
+          border-radius: 0 6px 6px 0;
+          margin-top: 22px;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .grid-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+        .info-card {
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 12px 16px;
+        }
+        .info-label {
+          font-size: 9px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #64748b;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .info-value {
+          font-size: 12px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          margin-top: 8px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+        th {
+          background-color: #0f172a;
+          color: #ffffff;
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          text-align: left;
+          padding: 10px 14px;
+        }
+        td {
+          padding: 10px 14px;
+          border-bottom: 1px solid #f1f5f9;
+        }
+
+        .summary-box {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          color: #ffffff;
+          padding: 16px 20px;
+          border-radius: 12px;
+          border: 1px solid #334155;
+          margin-top: 14px;
+        }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 4px 0;
+          font-size: 12px;
+        }
+        .summary-row.total {
+          border-top: 1px solid #334155;
+          padding-top: 10px;
+          margin-top: 6px;
+          font-size: 15px;
+          font-weight: 800;
+        }
+
+        .progress-bar-bg {
+          background-color: #334155;
+          height: 10px;
+          border-radius: 9999px;
+          overflow: hidden;
+          margin-top: 8px;
+        }
+        .progress-bar-fill {
+          background: linear-gradient(90deg, #f59e0b 0%, #10b981 100%);
+          height: 100%;
+          border-radius: 9999px;
+        }
+
+        .signatures {
+          margin-top: 40px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          page-break-inside: avoid;
+        }
+        .sig-box {
+          border-top: 2px solid #cbd5e1;
+          text-align: center;
+          padding-top: 10px;
+          font-size: 11px;
+          color: #475569;
+        }
+        .sig-title {
+          font-weight: 800;
+          color: #0f172a;
+          font-size: 12px;
+        }
+
+        .footer-terms {
+          margin-top: 30px;
+          padding-top: 12px;
+          border-top: 1px solid #e2e8f0;
+          font-size: 9px;
+          color: #94a3b8;
+          text-align: center;
+          line-height: 1.4;
+        }
+
+        @media print {
+          body { padding: 0; background: #fff; }
+          .no-print { display: none; }
+          .brand-header { box-shadow: none; }
+        }
+      </style>
+    </head>
+    <body>
+
+      <!-- HEADER BANNER BRANDING -->
+      <div class="brand-header">
+        <div class="clinic-brand">
+          <div class="clinic-logo-icon">DB</div>
+          <div>
+            <h1 class="clinic-title">${config.nombreClinica}</h1>
+            <div class="clinic-subtitle">${config.subtitulo}</div>
+          </div>
+        </div>
+        <div class="doc-badge">
+          <div class="doc-badge-id">RECIBO DE REINTEGRO #${pago.cod}</div>
+          <div class="doc-badge-date">Fecha de Emisión: ${pago.fecha}</div>
+        </div>
+      </div>
+
+      <!-- 1. INFORMACIÓN DEL PACIENTE & TRANSACCIÓN -->
+      <div class="section-title">
+        <span>1. Información del Paciente & Solicitud de Reintegro</span>
+        <span style="color: #64748b; font-size: 10px; font-weight: 600;">Comprobante Digital Oficial</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="info-card">
+          <span class="info-label">Paciente Titular</span>
+          <div class="info-value" style="font-size: 14px; color: #b45309;">${pago.nombre}</div>
+
+          <div style="margin-top: 10px;">
+            <span class="info-label">Código de Paciente / Reintegro</span>
+            <div class="info-value">${pago.id} ${reintegro ? `[${reintegro.reintegroId}]` : ''}</div>
+          </div>
+
+          <div style="margin-top: 10px;">
+            <span class="info-label">Cédula / Documento de Identidad</span>
+            <div class="info-value">${paciente?.cedula || 'N/A'}</div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <span class="info-label">Estado del Reintegro</span>
+          <div style="margin-top: 4px;">
+            <span style="background-color: #fffbe2; color: #92400e; border: 1px solid #fde68a; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; text-transform: uppercase;">
+              ✓ DEVOLUCIÓN DE EGRESO REGISTRADA
+            </span>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <span class="info-label">Teléfono / Contacto</span>
+            <div class="info-value">${paciente?.telefono || 'N/A'}</div>
+          </div>
+
+          <div style="margin-top: 10px;">
+            <span class="info-label">Correo Electrónico</span>
+            <div class="info-value">${paciente?.correo || 'N/A'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. DESGLOSE DEL EGRESO DEVOLUCIÓN -->
+      <div class="section-title">
+        <span>2. Detalle del Desembolso / Pago de Reintegro</span>
+        <span style="color: #64748b; font-size: 10px; font-weight: 600;">Transacción de Salida de Caja</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Concepto / Descripción del Egreso</th>
+            <th>Método de Pago</th>
+            <th>Referencia Bancaria</th>
+            <th style="text-align: right; width: 170px;">Monto Devuelto ($ USD)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background-color: #ffffff;">
+            <td style="font-weight: 700; color: #0f172a;">${pago.descripcion}</td>
+            <td style="font-weight: 700; color: #d97706;">${pago.metodoDePago}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #475569;">${pago.referencia || 'N/A'}</td>
+            <td style="text-align: right; font-weight: 800; color: #dc2626; font-size: 14px;">-$${montoDevueltoFormateado} USD</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3. RESUMEN Y BARRA DE PROGRESO DEL REINTEGRO -->
+      <div class="section-title">
+        <span>3. Balance General & Progreso del Reintegro</span>
+        <span style="color: #64748b; font-size: 10px; font-weight: 600;">Estatus Financiero</span>
+      </div>
+
+      <div class="summary-box">
+        ${totalAbonado > 0 ? `
+          <div class="summary-row">
+            <span style="color: #94a3b8;">Total Abonado Inicialmente (A):</span>
+            <strong style="color: #ffffff;">$${totalAbonado.toLocaleString()} USD</strong>
+          </div>
+          <div class="summary-row">
+            <span style="color: #f87171;">Gastos Administrativos (20% - G):</span>
+            <strong style="color: #f87171;">-$${gastosAdmin.toLocaleString()} USD</strong>
+          </div>
+        ` : ''}
+
+        <div class="summary-row" style="margin-top: 4px; border-top: 1px dashed #334155; padding-top: 6px;">
+          <span style="color: #fcd34d;">Monto Neto Reintegro Aprobado (R):</span>
+          <strong style="color: #fcd34d;">$${totalReintegroNeto.toLocaleString()} USD</strong>
+        </div>
+
+        <div class="summary-row">
+          <span style="color: #38bdf8;">Monto Devolución Registrada en este Recibo:</span>
+          <strong style="color: #38bdf8;">$${montoDevueltoFormateado} USD</strong>
+        </div>
+
+        <div class="summary-row">
+          <span style="color: #4ade80;">Total Efectivamente Reintegrado a la Fecha:</span>
+          <strong style="color: #4ade80;">$${totalDevueltoAcumulado.toLocaleString()} USD (${porcentajeAvance}%)</strong>
+        </div>
+
+        <div class="summary-row total">
+          <span style="color: #fbbf24;">SALDO PENDIENTE POR REINTEGRAR:</span>
+          <span style="color: #fbbf24;">$${saldoPendienteRestante.toLocaleString()} USD</span>
+        </div>
+
+        <!-- BARRA DE PROGRESO DE DEVOLUCIÓN -->
+        <div style="margin-top: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; color: #94a3b8;">
+            <span>Progreso de Devolución</span>
+            <span style="color: #4ade80;">${porcentajeAvance}% Completado</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: ${porcentajeAvance}%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. FIRMAS DE CONFORMIDAD -->
+      <div class="signatures">
+        <div class="sig-box">
+          <div class="sig-title">Firma del Paciente / Beneficiario</div>
+          <div style="font-weight: 700; color: #0f172a; margin-top: 4px;">${pago.nombre}</div>
+          <div style="font-size: 10px; color: #64748b;">ID: ${pago.id} ${paciente?.cedula ? `| C.I: ${paciente.cedula}` : ''}</div>
+          <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">Recibí Conforme la Devolución Indicada</div>
+        </div>
+
+        <div class="sig-box">
+          <div class="sig-title">Caja & Dirección Administrativa</div>
+          <div style="font-weight: 700; color: #0f172a; margin-top: 4px;">${config.doctorRepresentante}</div>
+          <div style="font-size: 10px; color: #64748b;">${config.nombreClinica}</div>
+          <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">Comprobante de Egreso Autorizado</div>
+        </div>
+      </div>
+
+      <!-- FOOTER TERMINOS -->
+      <div class="footer-terms">
+        <strong>${config.nombreClinica}</strong> — ${config.direccion} — Tel: ${config.telefono} — ${config.email}<br>
+        Este comprobante de egreso certifica la entrega parcial o total del reintegro aprobado bajo las políticas vigentes de la clínica. ${config.terminosReporte}
       </div>
 
       <script>

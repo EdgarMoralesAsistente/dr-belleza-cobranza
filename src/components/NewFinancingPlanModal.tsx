@@ -681,7 +681,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-200">
-                    {calculatePaymentSchedule(fechaInicio || new Date().toISOString().split('T')[0], cuotasActuales, saldoPendiente).map((item) => (
+                    {calculatePaymentSchedule(fechaEstimadaCirugia || new Date().toISOString().split('T')[0], cuotasActuales, saldoPendiente).map((item) => (
                       <tr key={item.numeroCuota} className="hover:bg-slate-800/50 transition-colors">
                         <td className="p-2 font-bold text-white">Cuota #{item.numeroCuota}</td>
                         <td className="p-2 text-teal-300 font-mono font-bold">{item.fechaFormateada}</td>

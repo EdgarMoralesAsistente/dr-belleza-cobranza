@@ -28,7 +28,8 @@ const SHEETS = {
   PAGOS: 'Pagos',
   USUARIOS: 'Usuarios',
   ACTIVIDADES: 'Actividades_CRM',
-  FINANCIAMIENTO: 'Financiamiento_Cirugias'
+  FINANCIAMIENTO: 'Financiamiento_Cirugias',
+  REINTEGROS: 'Reintegros_Financiamiento'
 };
 
 /**
@@ -88,7 +89,19 @@ function setupSpreadsheet() {
     "Fecha_Inicio", "Fecha_Estimada_Cirugia"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
 
-  return "Estructura de pestañas verificada y creada exitosamente.";
+  // 6. Pestaña Reintegros_Financiamiento
+  let sheetReint = ss.getSheetByName(SHEETS.REINTEGROS);
+  if (!sheetReint) {
+    sheetReint = ss.insertSheet(SHEETS.REINTEGROS);
+  }
+  sheetReint.getRange("A1:O1").setValues([[
+    "Reintegro_ID", "Plan_ID", "Paciente_ID", "Fecha_Solicitud", "Fecha_Aprobacion",
+    "Total_Abonado", "Gastos_Admin_20", "Monto_Neto_Reintegro", "Plazo_Meses",
+    "Es_Excepcion_10Dias", "Monto_Cuota_Mensual", "Monto_Efectivamente_Pagado",
+    "Saldo_Pendiente", "Estado_Reintegro", "Fecha_Estimada_Culminacion"
+  ]]).setFontWeight("bold").setBackground("#cbd5e1");
+
+  return "Estructura de 6 pestañas verificada y creada exitosamente.";
 }
 
 /**
@@ -122,6 +135,10 @@ function doGet(e) {
       return responseJSON({ success: true, data: getSheetData(SHEETS.FINANCIAMIENTO) });
     }
 
+    if (action === 'getReintegros') {
+      return responseJSON({ success: true, data: getSheetData(SHEETS.REINTEGROS) });
+    }
+
     if (action === 'getAllData') {
       return responseJSON({
         success: true,
@@ -129,7 +146,8 @@ function doGet(e) {
         pagos: getSheetData(SHEETS.PAGOS),
         usuarios: getSheetData(SHEETS.USUARIOS),
         actividades: getSheetData(SHEETS.ACTIVIDADES),
-        financiamientos: getSheetData(SHEETS.FINANCIAMIENTO)
+        financiamientos: getSheetData(SHEETS.FINANCIAMIENTO),
+        reintegros: getSheetData(SHEETS.REINTEGROS)
       });
     }
 
@@ -224,12 +242,66 @@ function doPost(e) {
       deleteRowsByColumnValue(SHEETS.PAGOS, 2, pId);
       deleteRowsByColumnValue(SHEETS.ACTIVIDADES, 1, pId);
       deleteRowsByColumnValue(SHEETS.FINANCIAMIENTO, 1, pId);
+      deleteRowsByColumnValue(SHEETS.REINTEGROS, 2, pId);
       return responseJSON({ success: true, message: 'Paciente y todos sus registros eliminados correctamente.' });
+    }
+
+    if (action === 'solicitarReintegro') {
+      const r = contents.reintegro;
+      appendRow(SHEETS.REINTEGROS, [
+        r.reintegroId, r.planId, r.pacienteId, r.fechaSolicitud, r.fechaAprobacion || '',
+        r.totalAbonado, r.gastosAdmin20, r.montoNetoReintegro, r.plazoMeses,
+        r.esExcepcion10Dias ? 'Sí' : 'No', r.montoCuotaMensual, r.montoEfectivamentePagado,
+        r.saldoPendiente, r.estadoReintegro, r.fechaEstimadaCulminacion
+      ]);
+
+      if (contents.financiamiento) {
+        const fin = contents.financiamiento;
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
+          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
+          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
+          fin.fechaInicio, fin.fechaEstimadaCirugia
+        ]);
+      }
+
+      return responseJSON({ success: true, message: 'Solicitud de reintegro procesada exitosamente' });
+    }
+
+    if (action === 'registrarPagoReintegro') {
+      if (contents.pago) {
+        const pago = contents.pago;
+        appendRow(SHEETS.PAGOS, [
+          pago.fecha, pago.cod, pago.id, pago.nombre, pago.descripcion, pago.metodoDePago,
+          pago.referencia, pago.cargo, pago.abono, pago.diasVcto, pago.estatus,
+          pago.mesProximaAccion, pago.fechaProximaAccion, pago.proximaAccion
+        ]);
+      }
+
+      if (contents.reintegro) {
+        const r = contents.reintegro;
+        updateRowById(SHEETS.REINTEGROS, 0, r.reintegroId, [
+          r.reintegroId, r.planId, r.pacienteId, r.fechaSolicitud, r.fechaAprobacion || '',
+          r.totalAbonado, r.gastosAdmin20, r.montoNetoReintegro, r.plazoMeses,
+          r.esExcepcion10Dias ? 'Sí' : 'No', r.montoCuotaMensual, r.montoEfectivamentePagado,
+          r.saldoPendiente, r.estadoReintegro, r.fechaEstimadaCulminacion
+        ]);
+      }
+
+      if (contents.financiamiento) {
+        const fin = contents.financiamiento;
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
+          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
+          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
+          fin.fechaInicio, fin.fechaEstimadaCirugia
+        ]);
+      }
+
+      return responseJSON({ success: true, message: 'Pago de reintegro registrado correctamente' });
     }
 
     if (action === 'syncFullDatabase') {
       // Reemplazar o volcar toda la base de datos local hacia Sheets
-      const { pacientes, pagos, usuarios, actividades, financiamientos } = contents;
+      const { pacientes, pagos, usuarios, actividades, financiamientos, reintegros } = contents;
       
       if (pacientes && Array.isArray(pacientes)) {
         replaceSheetData(SHEETS.PACIENTES, pacientes.map(p => [
@@ -264,6 +336,15 @@ function doPost(e) {
           f.planId, f.pacienteId, f.procedimiento, f.costoTotalCirugia,
           f.cuotasTotales, f.montoAbonado, f.saldoPendiente, f.estadoFinanciero,
           f.fechaInicio, f.fechaEstimadaCirugia
+        ]));
+      }
+
+      if (reintegros && Array.isArray(reintegros)) {
+        replaceSheetData(SHEETS.REINTEGROS, reintegros.map(r => [
+          r.reintegroId, r.planId, r.pacienteId, r.fechaSolicitud, r.fechaAprobacion || '',
+          r.totalAbonado, r.gastosAdmin20, r.montoNetoReintegro, r.plazoMeses,
+          r.esExcepcion10Dias ? 'Sí' : 'No', r.montoCuotaMensual, r.montoEfectivamentePagado,
+          r.saldoPendiente, r.estadoReintegro, r.fechaEstimadaCulminacion
         ]));
       }
 

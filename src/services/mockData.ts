@@ -1,4 +1,4 @@
-import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia } from '../types';
+import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia, Reintegro } from '../types';
 
 export const INITIAL_PACIENTES: Paciente[] = [
   {
@@ -242,7 +242,7 @@ export const INITIAL_FINANCIAMIENTOS: FinanciamientoCirugia[] = [
     cuotasTotales: 3,
     montoAbonado: 1200,
     saldoPendiente: 2600,
-    estadoFinanciero: 'En Mora',
+    estadoFinanciero: 'En Reintegro',
     fechaInicio: '2026-01-20',
     fechaEstimadaCirugia: '2026-04-10'
   },
@@ -281,5 +281,27 @@ export const INITIAL_FINANCIAMIENTOS: FinanciamientoCirugia[] = [
     estadoFinanciero: 'Al día',
     fechaInicio: '2026-02-10',
     fechaEstimadaCirugia: '2026-05-15'
+  }
+];
+
+export const INITIAL_REINTEGROS: Reintegro[] = [
+  {
+    reintegroId: 'REINT-2026-001',
+    planId: 'FIN-2026-002',
+    pacienteId: 'P-2026-0131',
+    fechaSolicitud: '2026-02-15',
+    fechaAprobacion: '2026-02-16',
+    totalAbonado: 1200,
+    gastosAdmin20: 240,
+    montoNetoReintegro: 960,
+    plazoMeses: 1,
+    esExcepcion10Dias: false,
+    montoCuotaMensual: 960,
+    montoEfectivamentePagado: 480,
+    saldoPendiente: 480,
+    estadoReintegro: 'Parcialmente Pagado',
+    fechaEstimadaCulminacion: '2026-03-15',
+    observaciones: 'Solicitud por traslado laboral fuera del país.',
+    motivo: 'Motivo Personal / Traslado'
   }
 ];

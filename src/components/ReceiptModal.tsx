@@ -7,13 +7,15 @@ import {
   FileText,
   CheckCircle2
 } from 'lucide-react';
-import { Pago, Paciente, FinanciamientoCirugia } from '../types';
-import { printPaymentReceiptPDF, getClinicConfig } from '../services/financingConfig';
+import { Pago, Paciente, FinanciamientoCirugia, Reintegro } from '../types';
+import { printPaymentReceiptPDF, printRefundReceiptPDF, getClinicConfig } from '../services/financingConfig';
+import { RefundReceiptModal } from './RefundReceiptModal';
 
 interface ReceiptModalProps {
   pago: Pago | null;
   paciente?: Paciente | null;
   financiamiento?: FinanciamientoCirugia | null;
+  reintegro?: Reintegro | null;
   onClose: () => void;
 }
 
@@ -21,14 +23,32 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   pago,
   paciente,
   financiamiento,
+  reintegro,
   onClose
 }) => {
   if (!pago) return null;
 
   const config = getClinicConfig();
 
+  const isRefund = pago.descripcion?.toLowerCase().includes('reintegro') || pago.referencia === 'REINTEGRO' || (pago.cargo && pago.cargo > 0 && !pago.abono);
+
+  if (isRefund) {
+    return (
+      <RefundReceiptModal
+        pago={pago}
+        reintegro={reintegro}
+        paciente={paciente}
+        onClose={onClose}
+      />
+    );
+  }
+
   const handlePrint = () => {
-    printPaymentReceiptPDF(pago, paciente, financiamiento);
+    if (isRefund) {
+      printRefundReceiptPDF(pago, null, paciente);
+    } else {
+      printPaymentReceiptPDF(pago, paciente, financiamiento);
+    }
   };
 
   const cargoTotal = (pago.cargo || financiamiento?.costoTotalCirugia || 0);

@@ -11,7 +11,11 @@ import {
   Download,
   AlertTriangle,
   Sparkles,
-  CheckCircle2
+  Filter,
+  DollarSign,
+  RotateCcw,
+  UserCheck,
+  CalendarDays
 } from 'lucide-react';
 import { ActividadCRM, Paciente } from '../../types';
 
@@ -41,6 +45,8 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
   const [selectedDateStr, setSelectedDateStr] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  const [filterType, setFilterType] = useState<string>('Todos');
+  const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -109,9 +115,32 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
     });
   }
 
-  // Group activities by dateStr
+  // Filter activities by user criteria
+  const filteredActividades = actividades.filter(a => {
+    let matchesType = true;
+    if (filterType === 'Cobros') {
+      matchesType = a.descripcion.includes('Cobro de Cuota') || (a.tipoActividad === 'Recordatorio de Pago' && !a.descripcion.includes('Reintegro'));
+    } else if (filterType === 'Reintegros') {
+      matchesType = a.descripcion.includes('Reintegro') || a.descripcion.includes('Devolución');
+    } else if (filterType === 'Citas') {
+      matchesType = a.tipoActividad === 'Cita' || a.descripcion.includes('Intervención') || a.descripcion.includes('Quirúrgica');
+    } else if (filterType === 'Llamadas') {
+      matchesType = a.tipoActividad === 'Llamada' || a.tipoActividad === 'Seguimiento Postquirúrgico';
+    } else if (filterType !== 'Todos') {
+      matchesType = a.tipoActividad === filterType;
+    }
+
+    const matchesStatus =
+      filterStatus === 'Todos' ||
+      (filterStatus === 'Pendientes' && a.estado === 'Pendiente') ||
+      (filterStatus === 'Realizadas' && a.estado === 'Realizada');
+
+    return matchesType && matchesStatus;
+  });
+
+  // Group filtered activities by dateStr
   const activitiesByDate: Record<string, ActividadCRM[]> = {};
-  actividades.forEach(a => {
+  filteredActividades.forEach(a => {
     if (!activitiesByDate[a.fechaProgramada]) {
       activitiesByDate[a.fechaProgramada] = [];
     }
@@ -144,6 +173,44 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
     const details = `Actividad CRM - Clínica Dr. Belleza\nTipo: ${act.tipoActividad}\nPaciente: ${pacienteName}\nDetalles: ${act.descripcion}`;
 
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&dates=${startISO}/${endISO}`;
+  };
+
+  // Helper for chip labels
+  const getEventChipInfo = (act: ActividadCRM) => {
+    const paciente = pacientes.find(p => p.id === act.pacienteId);
+    const pName = paciente ? paciente.nombre.split(' ')[0] : 'Paciente';
+
+    const isRefund = act.descripcion.includes('Reintegro') || act.descripcion.includes('Devolución');
+    const isCobro = act.descripcion.includes('Cobro de Cuota') || (act.tipoActividad === 'Recordatorio de Pago' && !isRefund);
+    const isSurgery = act.tipoActividad === 'Cita' || act.descripcion.includes('Quirúrgica');
+
+    if (isRefund) {
+      const match = act.descripcion.match(/Cuota #\d+\/\d+/);
+      const label = match ? `🚨 Reint. ${match[0]}` : `🚨 Reintegro`;
+      return {
+        label: `${label} (${pName})`,
+        bgClass: 'bg-amber-100 text-amber-900 border-amber-300'
+      };
+    }
+    if (isCobro) {
+      const match = act.descripcion.match(/Cuota #\d+\/\d+/);
+      const label = match ? `🔔 Cobro ${match[0]}` : `🔔 Cobro`;
+      return {
+        label: `${label} (${pName})`,
+        bgClass: 'bg-emerald-100 text-emerald-900 border-emerald-300'
+      };
+    }
+    if (isSurgery) {
+      return {
+        label: `🏥 Cirugía (${pName})`,
+        bgClass: 'bg-purple-100 text-purple-900 border-purple-300'
+      };
+    }
+
+    return {
+      label: `${act.tipoActividad}: ${pName}`,
+      bgClass: 'bg-teal-100 text-teal-900 border-teal-200'
+    };
   };
 
   // Export .ics calendar file
@@ -181,8 +248,8 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* BARRA SUPERIOR CON GOOGLE CALENDAR SYNC & NAVEGACIÓN DE MES */}
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* BARRA SUPERIOR CON FILTROS, NAVEGACIÓN Y GOOGLE CALENDAR */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         
         {/* NAVEGACIÓN MES/AÑO */}
         <div className="flex items-center space-x-3">
@@ -214,11 +281,35 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
           </h2>
         </div>
 
-        {/* INTEGRACIÓN Y DESCARGA GOOGLE CALENDAR */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-semibold px-3 py-1.5 rounded-lg flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-            <span>Google Calendar Sincronizado</span>
+        {/* FILTROS DE TIPO Y ESTADO */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden"
+            >
+              <option value="Todos">Todos los Eventos</option>
+              <option value="Cobros">🔔 Cobros de Cuotas</option>
+              <option value="Reintegros">🚨 Reintegros Programados</option>
+              <option value="Citas">🏥 Citas / Cirugías</option>
+              <option value="Llamadas">📞 Llamadas / Seguimiento</option>
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg">
+            {['Todos', 'Pendientes', 'Realizadas'].map(st => (
+              <button
+                key={st}
+                onClick={() => setFilterStatus(st)}
+                className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                  filterStatus === st ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {st}
+              </button>
+            ))}
           </div>
 
           <button
@@ -227,16 +318,17 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
             title="Exportar archivo iCal / Google Calendar"
           >
             <Download className="w-3.5 h-3.5 text-slate-600" />
-            <span>Exportar iCal / ICS</span>
+            <span className="hidden sm:inline">iCal / ICS</span>
           </button>
         </div>
+
       </div>
 
       {/* CONTENEDOR PRINCIPAL: CALENDARIO GRID + DETALLE DEL DÍA SELECCIONADO */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         
         {/* REJILLA DE CALENDARIO (COL 2 SPAN) */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
           
           {/* ENCABEZADO DÍAS DE LA SEMANA */}
           <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center py-2.5">
@@ -258,7 +350,7 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
                 <div
                   key={`${cell.dateStr}-${idx}`}
                   onClick={() => setSelectedDateStr(cell.dateStr)}
-                  className={`min-h-[85px] p-2 transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`min-h-[95px] p-1.5 transition-all cursor-pointer flex flex-col justify-between ${
                     cell.isCurrentMonth ? 'bg-white hover:bg-teal-50/30' : 'bg-slate-50/50 text-slate-300'
                   } ${isSelected ? 'ring-2 ring-teal-600 z-10 bg-teal-50/40' : ''}`}
                 >
@@ -266,7 +358,7 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
                     <span
                       className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
                         isToday
-                          ? 'bg-teal-600 text-white'
+                          ? 'bg-teal-600 text-white shadow-2xs'
                           : isSelected
                           ? 'bg-slate-900 text-white'
                           : cell.isCurrentMonth
@@ -278,31 +370,33 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
                     </span>
 
                     {dayActs.length > 0 && (
-                      <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-1.5 py-0.2 rounded-full">
+                      <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-1.5 py-0.2 rounded-full">
                         {dayActs.length}
                       </span>
                     )}
                   </div>
 
-                  {/* EVENTOS PEEKS EN CELDA */}
+                  {/* EVENTOS PEEKS EN CELDA CON INSIGNIAS DIFERENCIADAS */}
                   <div className="space-y-1 mt-1">
-                    {dayActs.slice(0, 2).map((act) => (
-                      <div
-                        key={act.actividadId}
-                        className={`text-[9px] truncate px-1.5 py-0.5 rounded-xs font-semibold ${
-                          act.estado === 'Realizada'
-                            ? 'bg-slate-100 text-slate-400 line-through'
-                            : act.alarma
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : 'bg-teal-100 text-teal-900'
-                        }`}
-                      >
-                        {act.hora} - {act.tipoActividad}
-                      </div>
-                    ))}
-                    {dayActs.length > 2 && (
-                      <div className="text-[9px] text-slate-400 font-bold px-1">
-                        +{dayActs.length - 2} más
+                    {dayActs.slice(0, 3).map((act) => {
+                      const info = getEventChipInfo(act);
+                      return (
+                        <div
+                          key={act.actividadId}
+                          className={`text-[9px] truncate px-1 py-0.5 rounded-sm font-bold border ${
+                            act.estado === 'Realizada'
+                              ? 'bg-slate-100 text-slate-400 border-slate-200 line-through'
+                              : info.bgClass
+                          }`}
+                          title={act.descripcion}
+                        >
+                          {info.label}
+                        </div>
+                      );
+                    })}
+                    {dayActs.length > 3 && (
+                      <div className="text-[9px] text-teal-700 font-extrabold px-1">
+                        +{dayActs.length - 3} más
                       </div>
                     )}
                   </div>
@@ -313,12 +407,12 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
         </div>
 
         {/* DETALLE Y ACTIVIDADES DEL DÍA SELECCIONADO */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-2xs p-5 space-y-4">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <span className="text-[10px] uppercase font-bold text-teal-600 tracking-wider">Gestión del Día</span>
               <h3 className="text-sm font-bold text-slate-900">
-                {selectedDateStr === todayStr ? 'Hoy' : ''} {selectedDateStr}
+                {selectedDateStr === todayStr ? 'Hoy ' : ''}{selectedDateStr}
               </h3>
             </div>
 
@@ -333,7 +427,7 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
 
           {selectedDayActivities.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg">
-              No hay actividades CRM programadas para esta fecha.
+              No hay eventos o actividades CRM programadas para esta fecha.
             </div>
           ) : (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -341,22 +435,49 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
                 const paciente = pacientes.find(p => p.id === act.pacienteId);
                 const pName = paciente ? paciente.nombre : act.pacienteId;
 
+                const isRefund = act.descripcion.includes('Reintegro') || act.descripcion.includes('Devolución');
+                const isCobro = act.descripcion.includes('Cobro de Cuota') || (act.tipoActividad === 'Recordatorio de Pago' && !isRefund);
+                const isSurgery = act.tipoActividad === 'Cita' || act.descripcion.includes('Quirúrgica');
+
                 return (
                   <div
                     key={act.actividadId}
-                    className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2 hover:border-teal-300 transition-colors"
+                    className={`p-3.5 rounded-xl border space-y-2.5 transition-all ${
+                      isRefund
+                        ? 'bg-amber-50/20 border-amber-200'
+                        : isCobro
+                        ? 'bg-emerald-50/20 border-emerald-200'
+                        : isSurgery
+                        ? 'bg-purple-50/20 border-purple-200'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                        {act.tipoActividad}
-                      </span>
+                      {isRefund ? (
+                        <span className="font-bold text-[10px] text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center">
+                          <RotateCcw className="w-3 h-3 mr-1 text-amber-700" /> Reintegro Paciente
+                        </span>
+                      ) : isCobro ? (
+                        <span className="font-bold text-[10px] text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center">
+                          <DollarSign className="w-3 h-3 mr-1 text-emerald-700" /> Cobro Plan Financiero
+                        </span>
+                      ) : isSurgery ? (
+                        <span className="font-bold text-[10px] text-purple-900 bg-purple-100 border border-purple-300 px-2 py-0.5 rounded-md flex items-center">
+                          <UserCheck className="w-3 h-3 mr-1 text-purple-700" /> Cita / Cirugía
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-[10px] text-slate-800 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                          {act.tipoActividad}
+                        </span>
+                      )}
+
                       <span className="text-xs font-semibold text-slate-500 flex items-center">
                         <Clock className="w-3 h-3 mr-1 text-slate-400" />
                         {act.hora}
                       </span>
                     </div>
 
-                    <p className={`text-xs ${act.estado === 'Realizada' ? 'line-through text-slate-400' : 'text-slate-800 font-medium'}`}>
+                    <p className={`text-xs ${act.estado === 'Realizada' ? 'line-through text-slate-400' : 'text-slate-800 font-semibold'}`}>
                       {act.descripcion}
                     </p>
 
@@ -406,3 +527,4 @@ export const CrmCalendarView: React.FC<CrmCalendarViewProps> = ({
     </div>
   );
 };
+

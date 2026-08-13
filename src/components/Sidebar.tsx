@@ -9,6 +9,7 @@ import {
   FileCode2,
   PlusCircle,
   TrendingUp,
+  RotateCcw,
   Sparkles,
   ShieldAlert,
   Settings,
@@ -21,6 +22,7 @@ export type TabType =
   | 'pacientes'
   | 'crm'
   | 'financiamiento'
+  | 'reintegros'
   | 'pagos'
   | 'usuarios'
   | 'google-sheets'
@@ -56,6 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (tab === 'google-sheets') return userRole === 'Administrador';
     if (tab === 'usuarios') return userRole === 'Administrador';
     if (tab === 'financiamiento') return userRole === 'Administrador' || userRole === 'Financiero';
+    if (tab === 'reintegros') return userRole === 'Administrador' || userRole === 'Financiero';
     if (tab === 'pagos') return userRole === 'Administrador' || userRole === 'Financiero';
     if (tab === 'crm') return userRole === 'Administrador' || userRole === 'Asistente' || userRole === 'Médico';
     if (tab === 'pacientes') return true;
@@ -68,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'pacientes' as TabType, label: 'Pacientes & Ficha 360°', icon: Users },
     { id: 'crm' as TabType, label: 'Agenda & Alarmas CRM', icon: CalendarCheck, badge: alarmsCount > 0 ? alarmsCount : undefined },
     { id: 'financiamiento' as TabType, label: 'Financiamiento Cirugías', icon: TrendingUp },
+    { id: 'reintegros' as TabType, label: 'Gestión de Reintegros', icon: RotateCcw },
     { id: 'pagos' as TabType, label: 'Pagos & Recibos', icon: Receipt },
     { id: 'usuarios' as TabType, label: 'Gestión de Usuarios', icon: UserCheck },
     { id: 'configuracion' as TabType, label: 'Configuración', icon: Settings },
