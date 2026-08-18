@@ -22,7 +22,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -38,8 +38,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const result = StorageService.login(emailOrUser, password);
+    try {
+      const result = await StorageService.loginAsync(emailOrUser, password);
       setIsLoading(false);
 
       if (result.success && result.user) {
@@ -47,7 +47,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       } else {
         setErrorMessage(result.message || 'Error al iniciar sesión. Verifica tus credenciales.');
       }
-    }, 250);
+    } catch (e: any) {
+      setIsLoading(false);
+      setErrorMessage('Error al verificar credenciales con el servidor.');
+    }
   };
 
   return (

@@ -140,18 +140,6 @@ export const Header: React.FC<HeaderProps> = ({
               <Search className="w-5 h-5" />
             </button>
 
-            {/* BOTÓN INFORME EJECUTIVO PDF PARA DIRECCIÓN */}
-            {onOpenPresentationModal && (
-              <button
-                onClick={onOpenPresentationModal}
-                className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 font-semibold text-xs transition-all cursor-pointer shadow-2xs"
-                title="Ver e Imprimir Informe Ejecutivo en PDF para la Dirección"
-              >
-                <FileText className="w-3.5 h-3.5 text-teal-600" />
-                <span className="hidden xl:inline">Informe PDF</span>
-              </button>
-            )}
-
             {/* GOOGLE SHEETS SYNC STATUS PILL */}
             <button
               onClick={onOpenGasConfig}

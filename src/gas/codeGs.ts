@@ -230,10 +230,18 @@ function doPost(e) {
 
     if (action === 'saveUsuario') {
       const u = contents.usuario;
-      updateOrAppendRow(SHEETS.USUARIOS, 0, u.usuarioId, [
-        u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion, u.fotoUrl || ''
-      ]);
+      updateOrAppendUser(SHEETS.USUARIOS, u);
       return responseJSON({ success: true, message: 'Usuario guardado' });
+    }
+
+    if (action === 'saveFinanciamiento') {
+      const fin = contents.financiamiento;
+      updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
+        fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
+        fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
+        fin.fechaInicio, fin.fechaEstimadaCirugia
+      ]);
+      return responseJSON({ success: true, message: 'Plan de financiamiento guardado' });
     }
 
     if (action === 'deletePaciente') {
@@ -425,6 +433,27 @@ function updateRowById(sheetName, idColumnIndex, targetId, newRowArray) {
 
 function updateOrAppendRow(sheetName, idColumnIndex, targetId, newRowArray) {
   updateRowById(sheetName, idColumnIndex, targetId, newRowArray);
+}
+
+function updateOrAppendUser(sheetName, u) {
+  const sheet = getOrCreateSheet(sheetName);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanRow = sanitizeRow([
+    u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion, u.fotoUrl || ''
+  ]);
+  const targetId = String(u.usuarioId || '').trim().toLowerCase();
+  const targetEmail = String(u.email || '').trim().toLowerCase();
+
+  for (let i = 1; i < values.length; i++) {
+    const rowId = String(values[i][0] || '').trim().toLowerCase();
+    const rowEmail = String(values[i][2] || '').trim().toLowerCase();
+    if ((targetId && rowId === targetId) || (targetEmail && rowEmail === targetEmail)) {
+      sheet.getRange(i + 1, 1, 1, cleanRow.length).setValues([cleanRow]);
+      return;
+    }
+  }
+  sheet.appendRow(cleanRow);
 }
 
 function replaceSheetData(sheetName, rowsData) {

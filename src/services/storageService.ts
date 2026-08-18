@@ -320,7 +320,7 @@ export class StorageService {
         list = [];
       }
     } else {
-      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PACIENTES;
+      list = [];
     }
     return list.map(normalizePaciente);
   }
@@ -342,7 +342,7 @@ export class StorageService {
         list = [];
       }
     } else {
-      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_PAGOS;
+      list = [];
     }
     return list.map(normalizePago);
   }
@@ -359,12 +359,13 @@ export class StorageService {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) list = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
       } catch (e) {
-        list = INITIAL_USUARIOS;
+        list = [INITIAL_USUARIOS[0]];
       }
-    } else {
-      list = INITIAL_USUARIOS;
+    }
+    if (list.length === 0) {
+      list = [INITIAL_USUARIOS[0]];
     }
     list = list.map(normalizeUsuario);
     
@@ -428,7 +429,7 @@ export class StorageService {
         rawList = [];
       }
     } else {
-      rawList = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_ACTIVIDADES.map(normalizeActividad);
+      rawList = [];
     }
 
     const mapExisting = new Map<string, ActividadCRM>();
@@ -611,7 +612,7 @@ export class StorageService {
         list = [];
       }
     } else {
-      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_FINANCIAMIENTOS;
+      list = [];
     }
     return list.map(normalizeFinanciamiento);
   }
@@ -633,7 +634,7 @@ export class StorageService {
         list = [];
       }
     } else {
-      list = localStorage.getItem('drb_clean_mode') === 'true' ? [] : INITIAL_REINTEGROS;
+      list = [];
     }
     return list.map(normalizeReintegro);
   }
@@ -680,6 +681,66 @@ export class StorageService {
   static setCurrentUser(user: Usuario): void {
     localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
     localStorage.setItem('drb_logged_in_v1', 'true');
+  }
+
+  static async loginAsync(emailOrUser: string, password: string): Promise<{ success: boolean; user?: Usuario; message?: string }> {
+    const cleanIdentifier = emailOrUser.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    // 1. Primero intentar con los usuarios en memoria local
+    let users = this.getUsuarios();
+    let foundUser = users.find(u => u && (
+      (u.email && u.email.toLowerCase() === cleanIdentifier) ||
+      (u.usuarioId && u.usuarioId.toLowerCase() === cleanIdentifier) ||
+      (u.nombre && u.nombre.toLowerCase().includes(cleanIdentifier))
+    ));
+
+    // 2. Si no se encuentra y hay URL de Google Apps Script configurada, sincronizar en vivo con Google Sheets
+    const gasUrl = this.getGasUrl();
+    if (!foundUser && gasUrl) {
+      try {
+        await this.syncFromGas();
+        users = this.getUsuarios();
+        foundUser = users.find(u => u && (
+          (u.email && u.email.toLowerCase() === cleanIdentifier) ||
+          (u.usuarioId && u.usuarioId.toLowerCase() === cleanIdentifier) ||
+          (u.nombre && u.nombre.toLowerCase().includes(cleanIdentifier))
+        ));
+      } catch (e) {
+        console.warn('Error al verificar usuario en vivo con Google Sheets:', e);
+      }
+    }
+
+    if (!foundUser) {
+      return {
+        success: false,
+        message: 'No se encontró ningún usuario con el correo o ID proporcionado.'
+      };
+    }
+
+    if (foundUser.estatus === 'Inactivo') {
+      return {
+        success: false,
+        message: 'El usuario se encuentra inactivo. Contacta al administrador del sistema.'
+      };
+    }
+
+    // Verificar contraseña estrictamente
+    const validPassword = foundUser.passwordHash === cleanPassword;
+
+    if (!validPassword) {
+      return {
+        success: false,
+        message: 'Contraseña incorrecta. Verifica tus datos de acceso.'
+      };
+    }
+
+    this.setCurrentUser(foundUser);
+    return {
+      success: true,
+      user: foundUser,
+      message: 'Inicio de sesión exitoso.'
+    };
   }
 
   static login(emailOrUser: string, password: string): { success: boolean; user?: Usuario; message?: string } {
@@ -1133,120 +1194,56 @@ export class StorageService {
     try {
       const data = await GasService.sendGet(gasUrl, 'getAllData');
       if (data && data.success) {
-        if (data.pacientes && Array.isArray(data.pacientes) && data.pacientes.length > 0) {
-          const remotePacientes = data.pacientes.map(normalizePaciente).filter(p => p.id);
-          const localPacientes = this.getPacientes();
-          const mergedMap = new Map<string, Paciente>();
-
-          remotePacientes.forEach(p => {
-            if (p.id) mergedMap.set(p.id, p);
-          });
-
-          localPacientes.forEach(p => {
-            if (!mergedMap.has(p.id)) {
-              mergedMap.set(p.id, p);
-            } else {
-              const remote = mergedMap.get(p.id)!;
-              if ((!remote.nombre || remote.nombre === 'Paciente sin nombre') && p.nombre && p.nombre !== 'Paciente sin nombre') {
-                mergedMap.set(p.id, p);
-              }
-            }
-          });
-
-          this.savePacientes(Array.from(mergedMap.values()));
+        // 1. Pacientes: Fuente de la verdad = Google Sheets
+        if (data.pacientes && Array.isArray(data.pacientes)) {
+          const remotePacientes = data.pacientes.map(normalizePaciente).filter(p => p && p.id);
+          this.savePacientes(remotePacientes);
         }
 
-        if (data.pagos && Array.isArray(data.pagos) && data.pagos.length > 0) {
-          const remotePagos = data.pagos.map(normalizePago).filter(p => p.cod);
-          const localPagos = this.getPagos();
-          const mergedMap = new Map<string, Pago>();
-
-          remotePagos.forEach(p => {
-            if (p.cod) mergedMap.set(p.cod, p);
-          });
-
-          localPagos.forEach(p => {
-            if (!mergedMap.has(p.cod)) {
-              mergedMap.set(p.cod, p);
-            }
-          });
-
-          this.savePagos(Array.from(mergedMap.values()));
+        // 2. Pagos: Fuente de la verdad = Google Sheets
+        if (data.pagos && Array.isArray(data.pagos)) {
+          const remotePagos = data.pagos.map(normalizePago).filter(p => p && p.cod);
+          this.savePagos(remotePagos);
         }
 
-        if (data.usuarios && Array.isArray(data.usuarios) && data.usuarios.length > 0) {
-          const remoteUsuarios = data.usuarios.map(normalizeUsuario).filter(u => u.usuarioId);
-          const localUsuarios = this.getUsuarios();
-          const mergedMap = new Map<string, Usuario>();
+        // 3. Usuarios: Fuente de la verdad = Google Sheets
+        if (data.usuarios && Array.isArray(data.usuarios)) {
+          let remoteUsuarios = data.usuarios.map(normalizeUsuario).filter(u => u && u.usuarioId && u.email);
+          const oldDemoEmails = [
+            'dra.isabella@drbelleza.com',
+            'maria.crm@drbelleza.com',
+            'dr.mendoza@drbelleza.com',
+            'carlos.finanzas@drbelleza.com'
+          ];
+          remoteUsuarios = remoteUsuarios.filter(u => !oldDemoEmails.includes(u.email.toLowerCase()));
 
-          remoteUsuarios.forEach(u => {
-            if (u.usuarioId) mergedMap.set(u.usuarioId, u);
-          });
-
-          localUsuarios.forEach(u => {
-            if (!mergedMap.has(u.usuarioId)) {
-              mergedMap.set(u.usuarioId, u);
-            }
-          });
-
-          this.saveUsuarios(Array.from(mergedMap.values()));
+          const edgarExists = remoteUsuarios.some(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+          if (!edgarExists) {
+            remoteUsuarios = [INITIAL_USUARIOS[0], ...remoteUsuarios];
+          }
+          this.saveUsuarios(remoteUsuarios);
         }
 
-        if (data.actividades && Array.isArray(data.actividades) && data.actividades.length > 0) {
-          const remoteCRM = data.actividades.map(normalizeActividad).filter(a => a.actividadId);
-          const localCRM = this.getActividades();
-          const mergedMap = new Map<string, ActividadCRM>();
-
-          remoteCRM.forEach(a => {
-            if (a.actividadId) mergedMap.set(a.actividadId, a);
-          });
-
-          localCRM.forEach(a => {
-            if (!mergedMap.has(a.actividadId)) {
-              mergedMap.set(a.actividadId, a);
-            }
-          });
-
-          this.saveActividades(Array.from(mergedMap.values()));
+        // 4. Actividades CRM: Fuente de la verdad = Google Sheets
+        if (data.actividades && Array.isArray(data.actividades)) {
+          const remoteCRM = data.actividades.map(normalizeActividad).filter(a => a && a.actividadId);
+          this.saveActividades(remoteCRM);
         }
 
-        if (data.financiamientos && Array.isArray(data.financiamientos) && data.financiamientos.length > 0) {
-          const remoteFin = data.financiamientos.map(normalizeFinanciamiento).filter(f => f.planId);
-          const localFin = this.getFinanciamientos();
-          const mergedMap = new Map<string, FinanciamientoCirugia>();
-
-          remoteFin.forEach(f => {
-            if (f.planId) mergedMap.set(f.planId, f);
-          });
-
-          localFin.forEach(f => {
-            if (!mergedMap.has(f.planId)) {
-              mergedMap.set(f.planId, f);
-            }
-          });
-
-          this.saveFinanciamientos(Array.from(mergedMap.values()));
+        // 5. Financiamientos: Fuente de la verdad = Google Sheets
+        if (data.financiamientos && Array.isArray(data.financiamientos)) {
+          const remoteFin = data.financiamientos.map(normalizeFinanciamiento).filter(f => f && f.planId);
+          this.saveFinanciamientos(remoteFin);
         }
 
-        if (data.reintegros && Array.isArray(data.reintegros) && data.reintegros.length > 0) {
-          const remoteReint = data.reintegros.map(normalizeReintegro).filter(r => r.reintegroId);
-          const localReint = this.getReintegros();
-          const mergedMap = new Map<string, Reintegro>();
-
-          remoteReint.forEach(r => {
-            if (r.reintegroId) mergedMap.set(r.reintegroId, r);
-          });
-
-          localReint.forEach(r => {
-            if (!mergedMap.has(r.reintegroId)) {
-              mergedMap.set(r.reintegroId, r);
-            }
-          });
-
-          this.saveReintegros(Array.from(mergedMap.values()));
+        // 6. Reintegros: Fuente de la verdad = Google Sheets
+        if (data.reintegros && Array.isArray(data.reintegros)) {
+          const remoteReint = data.reintegros.map(normalizeReintegro).filter(r => r && r.reintegroId);
+          this.saveReintegros(remoteReint);
         }
 
         localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
+        window.dispatchEvent(new Event('storage'));
         return { success: true, message: '¡Datos descargados y sincronizados correctamente desde Google Sheets!' };
       }
       return { success: false, message: data.error || 'Respuesta de sincronización no válida.' };

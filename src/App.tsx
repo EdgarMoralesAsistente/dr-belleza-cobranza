@@ -94,10 +94,23 @@ export default function App() {
       }
     };
 
+    // Sincronización periódica cada 10 segundos en segundo plano si hay URL configurada
+    const intervalId = setInterval(() => {
+      const currentGasUrl = StorageService.getGasUrl();
+      if (currentGasUrl) {
+        StorageService.syncFromGas()
+          .then((res) => {
+            if (res.success) refreshData();
+          })
+          .catch(console.error);
+      }
+    }, 10000);
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('focus', handleFocus);
 
     return () => {
+      clearInterval(intervalId);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleFocus);
     };
