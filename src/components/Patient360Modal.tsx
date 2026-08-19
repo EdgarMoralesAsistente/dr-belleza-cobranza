@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   User,
@@ -16,14 +16,17 @@ import {
   FileText,
   DollarSign,
   Printer,
-  Trash2
+  Trash2,
+  Edit2,
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { Paciente, Pago, ActividadCRM, FinanciamientoCirugia, Reintegro } from '../types';
 import { printPatientFinancingPDF } from '../services/financingConfig';
 import { StorageService } from '../services/storageService';
+import { CountryPhoneInput } from './common/CountryPhoneInput';
 import { RefundModal } from './RefundModal';
 import { RefundReceiptModal } from './RefundReceiptModal';
-import { RotateCcw } from 'lucide-react';
 
 interface Patient360ModalProps {
   paciente: Paciente | null;
@@ -60,6 +63,37 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [selectedRefundForReceipt, setSelectedRefundForReceipt] = useState<Pago | null>(null);
+
+  // Estado para edición directa de información de contacto
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [editedPhone, setEditedPhone] = useState(paciente?.telefono || '');
+  const [editedEmail, setEditedEmail] = useState(paciente?.correo || '');
+  const [editedAddress, setEditedAddress] = useState(paciente?.direccion || '');
+  const [isSavingContact, setIsSavingContact] = useState(false);
+
+  useEffect(() => {
+    if (paciente) {
+      setEditedPhone(paciente.telefono || '');
+      setEditedEmail(paciente.correo || '');
+      setEditedAddress(paciente.direccion || '');
+      setIsEditingContact(false);
+    }
+  }, [paciente]);
+
+  const handleSaveContact = () => {
+    if (!paciente) return;
+    setIsSavingContact(true);
+    const updated: Paciente = {
+      ...paciente,
+      telefono: editedPhone.trim() || 'No especificado',
+      correo: editedEmail.trim() || 'paciente@gmail.com',
+      direccion: editedAddress.trim() || 'Sin dirección'
+    };
+    StorageService.updatePaciente(updated);
+    setIsEditingContact(false);
+    setIsSavingContact(false);
+    if (onRefreshData) onRefreshData();
+  };
 
   const isAdmin = userRole === 'Administrador';
 
@@ -301,32 +335,111 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
 
               {/* INFORMACIÓN DE CONTACTO DETALLADA */}
               <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Información de Contacto & Dirección</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg">
-                    <Phone className="w-4 h-4 text-teal-600" />
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Teléfono Móvil</span>
-                      <strong className="text-slate-800 text-sm">{paciente.telefono}</strong>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Información de Contacto & Dirección</h3>
+                  {!isEditingContact ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingContact(true)}
+                      className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center space-x-1 hover:bg-teal-50 px-2 py-1 rounded-md transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Editar Contacto</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingContact(false);
+                          setEditedPhone(paciente.telefono || '');
+                          setEditedEmail(paciente.correo || '');
+                          setEditedAddress(paciente.direccion || '');
+                        }}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-700 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveContact}
+                        disabled={isSavingContact}
+                        className="text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 shadow-xs"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{isSavingContact ? 'Guardando...' : 'Guardar'}</span>
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg">
-                    <Mail className="w-4 h-4 text-teal-600" />
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Correo Electrónico</span>
-                      <strong className="text-slate-800 text-sm">{paciente.correo}</strong>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg sm:col-span-2">
-                    <MapPin className="w-4 h-4 text-teal-600 shrink-0" />
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Dirección de Residencia</span>
-                      <strong className="text-slate-800 text-sm">{paciente.direccion}</strong>
-                    </div>
-                  </div>
+                  )}
                 </div>
+
+                {!isEditingContact ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg">
+                      <Phone className="w-4 h-4 text-teal-600" />
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Teléfono Móvil</span>
+                        <strong className="text-slate-800 text-sm font-mono">{paciente.telefono || 'No especificado'}</strong>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg">
+                      <Mail className="w-4 h-4 text-teal-600" />
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Correo Electrónico</span>
+                        <strong className="text-slate-800 text-sm">{paciente.correo}</strong>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg sm:col-span-2">
+                      <MapPin className="w-4 h-4 text-teal-600 shrink-0" />
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Dirección de Residencia</span>
+                        <strong className="text-slate-800 text-sm">{paciente.direccion}</strong>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                        Teléfono Móvil (WhatsApp)
+                      </label>
+                      <CountryPhoneInput
+                        value={editedPhone}
+                        onChange={setEditedPhone}
+                        placeholder="414 1234567"
+                        required={false}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                          Correo Electrónico
+                        </label>
+                        <input
+                          type="email"
+                          value={editedEmail}
+                          onChange={(e) => setEditedEmail(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                          Dirección de Residencia
+                        </label>
+                        <input
+                          type="text"
+                          value={editedAddress}
+                          onChange={(e) => setEditedAddress(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>

@@ -65,14 +65,25 @@ export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
   const parsePhoneValue = (val: string) => {
     if (!val) return { selectedCountry: COUNTRIES[0], numberPart: '' };
 
+    let cleaned = val.trim();
+    if (cleaned.startsWith("'")) {
+      cleaned = cleaned.substring(1).trim();
+    }
+
     // Find country matching the dialCode prefix
-    const matched = COUNTRIES.find(c => val.trim().startsWith(c.dialCode));
+    const matched = COUNTRIES.find(c => cleaned.startsWith(c.dialCode));
     if (matched) {
-      const rest = val.trim().substring(matched.dialCode.length).trim();
+      const rest = cleaned.substring(matched.dialCode.length).trim();
       return { selectedCountry: matched, numberPart: rest };
     }
 
-    return { selectedCountry: COUNTRIES[0], numberPart: val };
+    // Check if it starts with + but didn't match directly
+    if (cleaned.startsWith('+')) {
+      const withoutPlus = cleaned.substring(1).trim();
+      return { selectedCountry: COUNTRIES[0], numberPart: withoutPlus };
+    }
+
+    return { selectedCountry: COUNTRIES[0], numberPart: cleaned };
   };
 
   const initialParsed = parsePhoneValue(value);
@@ -83,6 +94,15 @@ export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync internal state when value prop changes externally
+  useEffect(() => {
+    if (value !== undefined) {
+      const parsed = parsePhoneValue(value);
+      setSelectedCountry(parsed.selectedCountry);
+      setPhoneNumber(parsed.numberPart);
+    }
+  }, [value]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -110,16 +130,24 @@ export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
     // Construct new full phone string
     const full = phoneNumber.trim()
       ? `${country.dialCode} ${phoneNumber.trim()}`
-      : `${country.dialCode} `;
+      : '';
     onChange(full);
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputVal = e.target.value;
+    let inputVal = e.target.value;
+    
+    // Si pegan un texto con prefijo internacional o +, limpiarlo
+    if (inputVal.startsWith('+')) {
+      const parsed = parsePhoneValue(inputVal);
+      setSelectedCountry(parsed.selectedCountry);
+      inputVal = parsed.numberPart;
+    }
+
     setPhoneNumber(inputVal);
     const full = inputVal.trim()
       ? `${selectedCountry.dialCode} ${inputVal.trim()}`
-      : `${selectedCountry.dialCode} `;
+      : '';
     onChange(full);
   };
 

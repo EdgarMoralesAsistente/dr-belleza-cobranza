@@ -434,7 +434,14 @@ function getSheetData(sheetName) {
 
 function appendRow(sheetName, rowArray) {
   const sheet = getOrCreateSheet(sheetName);
-  sheet.appendRow(sanitizeRow(rowArray));
+  if (!sheet) return;
+  const cleanRow = sanitizeRow(rowArray);
+  const targetRow = sheet.getLastRow() + 1;
+  if (sheetName === SHEETS.PACIENTES) {
+    sheet.getRange(targetRow, 2).setNumberFormat('@');
+    sheet.getRange(targetRow, 6).setNumberFormat('@');
+  }
+  sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
 }
 
 function updateRowById(sheetName, idColumnIndex, targetId, newRowArray) {
@@ -442,14 +449,22 @@ function updateRowById(sheetName, idColumnIndex, targetId, newRowArray) {
   if (!sheet) return;
   const values = sheet.getDataRange().getValues();
   const cleanRow = sanitizeRow(newRowArray);
+  const targetIdStr = String(targetId || '').trim().toUpperCase();
+
   for (let i = 1; i < values.length; i++) {
-    if (String(values[i][idColumnIndex]) === String(targetId)) {
-      sheet.getRange(i + 1, 1, 1, cleanRow.length).setValues([cleanRow]);
+    const rowIdStr = String(values[i][idColumnIndex] || '').trim().toUpperCase();
+    if (rowIdStr === targetIdStr) {
+      const targetRow = i + 1;
+      if (sheetName === SHEETS.PACIENTES) {
+        sheet.getRange(targetRow, 2).setNumberFormat('@');
+        sheet.getRange(targetRow, 6).setNumberFormat('@');
+      }
+      sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
       return;
     }
   }
   // Si no se encuentra, append
-  sheet.appendRow(cleanRow);
+  appendRow(sheetName, newRowArray);
 }
 
 function updateOrAppendRow(sheetName, idColumnIndex, targetId, newRowArray) {

@@ -49,11 +49,44 @@ export function cleanField(val: any, fallback = ''): string {
     str.includes('#REF!') ||
     str.includes('#VALUE!') ||
     str.includes('#NAME?') ||
-    str.includes('#N/A')
+    str.includes('#N/A') ||
+    str === 'NaN' ||
+    str === 'undefined' ||
+    str === 'null'
   ) {
     return fallback;
   }
   return str || fallback;
+}
+
+export function cleanPhoneField(rawPhone: any, id?: string, cedula?: string): string {
+  let cleaned = cleanField(rawPhone, '');
+  if (cleaned.startsWith("'")) {
+    cleaned = cleaned.substring(1).trim();
+  }
+  
+  const isInvalid = (
+    !cleaned ||
+    cleaned === 'No especificado' ||
+    cleaned.includes('#ERROR') ||
+    cleaned.includes('#¡ERROR') ||
+    cleaned.includes('#REF!') ||
+    cleaned.includes('#VALUE!') ||
+    cleaned.startsWith('#') ||
+    cleaned.length < 4
+  );
+
+  if (isInvalid) {
+    const cached = StorageService.getCachedPhone(id) || StorageService.getCachedPhone(cedula);
+    if (cached) return cached;
+    return 'No especificado';
+  }
+
+  // Cache valid phone number immediately
+  if (id || cedula) {
+    StorageService.cachePatientPhone(id || '', cedula || '', cleaned);
+  }
+  return cleaned;
 }
 
 export function normalizePaciente(p: any): Paciente {
@@ -64,7 +97,7 @@ export function normalizePaciente(p: any): Paciente {
       nombre: 'Paciente sin nombre',
       genero: 'Femenino',
       correo: 'paciente@gmail.com',
-      telefono: '0412-0000000',
+      telefono: 'No especificado',
       contactada: 'Por Contactar',
       fecha: new Date().toISOString().split('T')[0],
       promocion: 'Directo',
@@ -72,13 +105,19 @@ export function normalizePaciente(p: any): Paciente {
       direccion: 'Sin dirección'
     };
   }
+
+  const pId = cleanField(p.id || p.ID || p.Id, `PAC-${Date.now()}`);
+  const pCedula = cleanField(p.cedula || p.CEDULA || p.Cedula, 'V-00000000');
+  const rawTel = p.telefono || p.TELEFONO || p.Telefono;
+  const pTelefono = cleanPhoneField(rawTel, pId, pCedula);
+
   return {
-    id: cleanField(p.id || p.ID || p.Id, `PAC-${Date.now()}`),
-    cedula: cleanField(p.cedula || p.CEDULA || p.Cedula, 'V-00000000'),
+    id: pId,
+    cedula: pCedula,
     nombre: cleanField(p.nombre || p.NOMBRE || p.Nombre, 'Paciente sin nombre'),
     genero: (cleanField(p.genero || p.GENERO || p.Genero, 'Femenino')) as any,
     correo: cleanField(p.correo || p.CORREO || p.Correo, 'paciente@gmail.com'),
-    telefono: cleanField(p.telefono || p.TELEFONO || p.Telefono, 'No especificado'),
+    telefono: pTelefono,
     contactada: cleanField(p.contactada || p.CONTACTADA || p.Contactada, 'Por Contactar'),
     fecha: cleanField(p.fecha || p.FECHA || p.Fecha, new Date().toISOString().split('T')[0]),
     promocion: cleanField(p.promocion || p.PROMOCION || p.Promocion, 'Directo'),
@@ -841,6 +880,46 @@ export class StorageService {
     return `REINT-2026-${String(count).padStart(3, '0')}`;
   }
 
+  // --- REGISTRO DE TELÉFONOS EN VAULT PERSISTENTE ---
+  static getPhoneVault(): Record<string, string> {
+    try {
+      const data = localStorage.getItem('drb_phones_vault_v2');
+      if (data) return JSON.parse(data);
+    } catch (e) {}
+    return {};
+  }
+
+  static cachePatientPhone(id: string, cedula: string, phone: string): void {
+    if (!phone) return;
+    const cleanPhone = String(phone).trim().replace(/^'+/, '');
+    if (
+      !cleanPhone ||
+      cleanPhone === 'No especificado' ||
+      cleanPhone.includes('#ERROR') ||
+      cleanPhone.includes('#¡ERROR') ||
+      cleanPhone.startsWith('#') ||
+      cleanPhone.length < 4
+    ) return;
+
+    try {
+      const vault = this.getPhoneVault();
+      if (id) vault[String(id).trim().toUpperCase()] = cleanPhone;
+      if (cedula) vault[String(cedula).trim().toUpperCase()] = cleanPhone;
+      localStorage.setItem('drb_phones_vault_v2', JSON.stringify(vault));
+    } catch (e) {}
+  }
+
+  static getCachedPhone(idOrCedula?: string): string | null {
+    if (!idOrCedula) return null;
+    try {
+      const vault = this.getPhoneVault();
+      const key = String(idOrCedula).trim().toUpperCase();
+      return vault[key] || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // --- REGISTRO DE PACIENTES ELIMINADOS (TOMBSTONES) ---
   static getDeletedPatientIds(): Set<string> {
     try {
@@ -876,9 +955,14 @@ export class StorageService {
     if (paciente.id) this.removeDeletedPatientId(paciente.id);
     if (paciente.cedula) this.removeDeletedPatientId(paciente.cedula);
 
+    if (paciente.telefono && paciente.telefono !== 'No especificado') {
+      this.cachePatientPhone(paciente.id, paciente.cedula, paciente.telefono);
+    }
+
     const list = this.getPacientes();
-    list.unshift(paciente);
-    this.savePacientes(list);
+    const filtered = list.filter(p => p.id !== paciente.id && (!paciente.cedula || p.cedula !== paciente.cedula));
+    filtered.unshift(paciente);
+    this.savePacientes(filtered);
 
     // Sync si hay URL
     const gasUrl = this.getGasUrl();
@@ -890,6 +974,10 @@ export class StorageService {
   static updatePaciente(paciente: Paciente): void {
     if (paciente.id) this.removeDeletedPatientId(paciente.id);
     if (paciente.cedula) this.removeDeletedPatientId(paciente.cedula);
+
+    if (paciente.telefono && paciente.telefono !== 'No especificado') {
+      this.cachePatientPhone(paciente.id, paciente.cedula, paciente.telefono);
+    }
 
     const list = this.getPacientes().map(p => p.id === paciente.id ? paciente : p);
     this.savePacientes(list);
@@ -1268,7 +1356,11 @@ export class StorageService {
         if (data.pacientes && Array.isArray(data.pacientes)) {
           const localPacientesMap = new Map<string, Paciente>();
           this.getPacientes().forEach(p => {
-            if (p.id) localPacientesMap.set(p.id, p);
+            if (p.id) localPacientesMap.set(String(p.id).trim().toUpperCase(), p);
+            if (p.cedula) localPacientesMap.set(String(p.cedula).trim().toUpperCase(), p);
+            if (p.telefono && p.telefono !== 'No especificado') {
+              this.cachePatientPhone(p.id, p.cedula, p.telefono);
+            }
           });
 
           const remotePacientes = data.pacientes
@@ -1291,13 +1383,34 @@ export class StorageService {
               return true;
             })
             .map(p => {
-              const local = localPacientesMap.get(p.id);
-              // Si el remoto vino sin teléfono válido pero el local sí tiene un teléfono real guardado, preservar el local y actualizar en GAS
-              if ((!p.telefono || p.telefono === 'No especificado' || p.telefono.includes('#ERROR')) && local && local.telefono && !local.telefono.includes('#ERROR') && local.telefono !== 'No especificado') {
-                p.telefono = local.telefono;
-                if (gasUrl) {
-                  GasService.sendPost(gasUrl, { action: 'updatePaciente', paciente: p }).catch(() => {});
+              const pIdUpper = String(p.id).trim().toUpperCase();
+              const pCedUpper = String(p.cedula || '').trim().toUpperCase();
+              const local = localPacientesMap.get(pIdUpper) || (pCedUpper ? localPacientesMap.get(pCedUpper) : undefined);
+              const cachedPhone = this.getCachedPhone(p.id) || this.getCachedPhone(p.cedula);
+              
+              const currentTel = p.telefono;
+              const isTelInvalid = (
+                !currentTel ||
+                currentTel === 'No especificado' ||
+                currentTel.includes('#ERROR') ||
+                currentTel.includes('#¡ERROR') ||
+                currentTel.startsWith('#')
+              );
+
+              if (isTelInvalid) {
+                const recoveredPhone = (local && local.telefono && local.telefono !== 'No especificado' && !local.telefono.includes('#ERROR'))
+                  ? local.telefono
+                  : cachedPhone;
+
+                if (recoveredPhone) {
+                  p.telefono = recoveredPhone;
+                  this.cachePatientPhone(p.id, p.cedula, recoveredPhone);
+                  if (gasUrl) {
+                    GasService.sendPost(gasUrl, { action: 'updatePaciente', paciente: p }).catch(() => {});
+                  }
                 }
+              } else {
+                this.cachePatientPhone(p.id, p.cedula, currentTel);
               }
               return p;
             });
