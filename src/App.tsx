@@ -209,11 +209,11 @@ export default function App() {
     refreshData();
   };
 
-  const handleDeletePatient = (patientId: string) => {
-    StorageService.deletePaciente(patientId);
+  const handleDeletePatient = async (patientId: string) => {
     if (selectedPatient360?.id === patientId) {
       setSelectedPatient360(null);
     }
+    await StorageService.deletePaciente(patientId);
     refreshData();
   };
 

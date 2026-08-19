@@ -47,6 +47,8 @@ function setupSpreadsheet() {
     "ID", "cedula", "NOMBRE", "GENERO", "CORREO", "TELEFONO",
     "CONTACTADA", "FECHA", "promocion", "procedimiento", "DIRECCION"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
+  sheetPacientes.getRange("B:B").setNumberFormat('@');
+  sheetPacientes.getRange("F:F").setNumberFormat('@');
 
   // 2. Pestaña Pagos
   let sheetPagos = ss.getSheetByName(SHEETS.PAGOS);
@@ -245,12 +247,15 @@ function doPost(e) {
     }
 
     if (action === 'deletePaciente') {
-      const pId = contents.pacienteId;
-      deleteRowsByColumnValue(SHEETS.PACIENTES, 0, pId);
-      deleteRowsByColumnValue(SHEETS.PAGOS, 2, pId);
-      deleteRowsByColumnValue(SHEETS.ACTIVIDADES, 1, pId);
-      deleteRowsByColumnValue(SHEETS.FINANCIAMIENTO, 1, pId);
-      deleteRowsByColumnValue(SHEETS.REINTEGROS, 2, pId);
+      const pId = String(contents.pacienteId || '').trim();
+      const cedula = String(contents.cedula || '').trim();
+      const searchTargets = [pId, cedula].filter(function(t) { return t.length > 0; });
+
+      deleteRowsByMatchingValues(SHEETS.PACIENTES, [0, 1], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.PAGOS, [2], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.ACTIVIDADES, [1], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.FINANCIAMIENTO, [1], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.REINTEGROS, [2], searchTargets);
       return responseJSON({ success: true, message: 'Paciente y todos sus registros eliminados correctamente.' });
     }
 
@@ -375,6 +380,13 @@ function responseJSON(data) {
 
 function sanitizeVal(val) {
   if (val === undefined || val === null) return '';
+  if (typeof val === 'string') {
+    // Si empieza con +, =, @, -, anteponer comilla simple ' para que Google Sheets lo guarde como texto puro y no intente evaluarlo como fórmula
+    if (/^[+=@\-]/.test(val)) {
+      return "'" + val;
+    }
+    return val;
+  }
   return val;
 }
 
@@ -405,7 +417,16 @@ function getSheetData(sheetName) {
   return rows.map(function(row) {
     const obj = {};
     headers.forEach(function(header, index) {
-      obj[header] = row[index];
+      let cell = row[index];
+      if (typeof cell === 'string') {
+        if (cell.indexOf("'") === 0) {
+          cell = cell.substring(1);
+        }
+        if (cell === '#ERROR!' || cell === '#¡ERROR!' || cell === '#VALUE!' || cell === '#REF!' || cell === '#NAME?') {
+          cell = '';
+        }
+      }
+      obj[header] = cell;
     });
     return obj;
   });
@@ -470,14 +491,33 @@ function replaceSheetData(sheetName, rowsData) {
   }
 }
 
-function deleteRowsByColumnValue(sheetName, colIndex, targetVal) {
+function deleteRowsByMatchingValues(sheetName, colIndices, targetValues) {
   const sheet = getOrCreateSheet(sheetName);
   if (!sheet) return;
   const values = sheet.getDataRange().getValues();
+  const cleanTargets = targetValues
+    .filter(function(t) { return t && String(t).trim().length > 0; })
+    .map(function(t) { return String(t).trim().toLowerCase(); });
+  
+  if (cleanTargets.length === 0) return;
+
   for (let i = values.length - 1; i >= 1; i--) {
-    if (String(values[i][colIndex]) === String(targetVal)) {
+    let match = false;
+    for (let c = 0; c < colIndices.length; c++) {
+      const colIdx = colIndices[c];
+      const cellVal = String(values[i][colIdx] || '').trim().toLowerCase();
+      if (cellVal && cleanTargets.indexOf(cellVal) !== -1) {
+        match = true;
+        break;
+      }
+    }
+    if (match) {
       sheet.deleteRow(i + 1);
     }
   }
+}
+
+function deleteRowsByColumnValue(sheetName, colIndex, targetVal) {
+  deleteRowsByMatchingValues(sheetName, [colIndex], [targetVal]);
 }
 `;

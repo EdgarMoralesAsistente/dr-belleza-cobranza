@@ -34,6 +34,7 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGender, setSelectedGender] = useState<string>('Todos');
   const [patientToDelete, setPatientToDelete] = useState<Paciente | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isAdmin = userRole === 'Administrador';
 
@@ -52,10 +53,15 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
     return matchesSearch && matchesGender;
   });
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (patientToDelete && onDeletePatient) {
-      onDeletePatient(patientToDelete.id);
-      setPatientToDelete(null);
+      setIsDeleting(true);
+      try {
+        await onDeletePatient(patientToDelete.id);
+      } finally {
+        setIsDeleting(false);
+        setPatientToDelete(null);
+      }
     }
   };
 
@@ -283,18 +289,20 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
             <div className="flex items-center justify-end space-x-3 pt-2 border-t border-slate-100">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => setPatientToDelete(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center space-x-1.5 transition-all cursor-pointer"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Sí, Eliminar Todo</span>
+                <Trash2 className={`w-4 h-4 ${isDeleting ? 'animate-spin' : ''}`} />
+                <span>{isDeleting ? 'Eliminando...' : 'Sí, Eliminar Todo'}</span>
               </button>
             </div>
           </div>

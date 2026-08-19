@@ -37,6 +37,25 @@ const KEYS = {
 
 const DEFAULT_USER_ROLES = ['Administrador', 'Asistente', 'Financiero', 'Médico'];
 
+export function cleanField(val: any, fallback = ''): string {
+  if (val === undefined || val === null) return fallback;
+  let str = String(val).trim();
+  if (str.startsWith("'")) {
+    str = str.substring(1).trim();
+  }
+  if (
+    str.includes('#ERROR') ||
+    str.includes('#¡ERROR') ||
+    str.includes('#REF!') ||
+    str.includes('#VALUE!') ||
+    str.includes('#NAME?') ||
+    str.includes('#N/A')
+  ) {
+    return fallback;
+  }
+  return str || fallback;
+}
+
 export function normalizePaciente(p: any): Paciente {
   if (!p || typeof p !== 'object') {
     return {
@@ -54,17 +73,17 @@ export function normalizePaciente(p: any): Paciente {
     };
   }
   return {
-    id: String(p.id || p.ID || p.Id || `PAC-${Date.now()}`),
-    cedula: String(p.cedula || p.CEDULA || p.Cedula || 'V-00000000'),
-    nombre: String(p.nombre || p.NOMBRE || p.Nombre || 'Paciente sin nombre'),
-    genero: (p.genero || p.GENERO || p.Genero || 'Femenino') as any,
-    correo: String(p.correo || p.CORREO || p.Correo || 'paciente@gmail.com'),
-    telefono: String(p.telefono || p.TELEFONO || p.Telefono || '0412-0000000'),
-    contactada: String(p.contactada || p.CONTACTADA || p.Contactada || 'Por Contactar'),
-    fecha: String(p.fecha || p.FECHA || p.Fecha || new Date().toISOString().split('T')[0]),
-    promocion: String(p.promocion || p.PROMOCION || p.Promocion || 'Directo'),
-    procedimiento: String(p.procedimiento || p.PROCEDIMIENTO || p.Procedimiento || 'Consulta General'),
-    direccion: String(p.direccion || p.DIRECCION || p.Direccion || 'Sin dirección')
+    id: cleanField(p.id || p.ID || p.Id, `PAC-${Date.now()}`),
+    cedula: cleanField(p.cedula || p.CEDULA || p.Cedula, 'V-00000000'),
+    nombre: cleanField(p.nombre || p.NOMBRE || p.Nombre, 'Paciente sin nombre'),
+    genero: (cleanField(p.genero || p.GENERO || p.Genero, 'Femenino')) as any,
+    correo: cleanField(p.correo || p.CORREO || p.Correo, 'paciente@gmail.com'),
+    telefono: cleanField(p.telefono || p.TELEFONO || p.Telefono, 'No especificado'),
+    contactada: cleanField(p.contactada || p.CONTACTADA || p.Contactada, 'Por Contactar'),
+    fecha: cleanField(p.fecha || p.FECHA || p.Fecha, new Date().toISOString().split('T')[0]),
+    promocion: cleanField(p.promocion || p.PROMOCION || p.Promocion, 'Directo'),
+    procedimiento: cleanField(p.procedimiento || p.PROCEDIMIENTO || p.Procedimiento, 'Consulta General'),
+    direccion: cleanField(p.direccion || p.DIRECCION || p.Direccion, 'Sin dirección')
   };
 }
 
@@ -822,8 +841,41 @@ export class StorageService {
     return `REINT-2026-${String(count).padStart(3, '0')}`;
   }
 
+  // --- REGISTRO DE PACIENTES ELIMINADOS (TOMBSTONES) ---
+  static getDeletedPatientIds(): Set<string> {
+    try {
+      const data = localStorage.getItem('drb_deleted_pacientes_v1');
+      if (data) {
+        const arr = JSON.parse(data);
+        if (Array.isArray(arr)) {
+          return new Set(arr.map((id: string) => String(id).trim().toUpperCase()));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return new Set<string>();
+  }
+
+  static addDeletedPatientId(id: string): void {
+    if (!id) return;
+    const current = this.getDeletedPatientIds();
+    current.add(String(id).trim().toUpperCase());
+    localStorage.setItem('drb_deleted_pacientes_v1', JSON.stringify(Array.from(current)));
+  }
+
+  static removeDeletedPatientId(id: string): void {
+    if (!id) return;
+    const current = this.getDeletedPatientIds();
+    current.delete(String(id).trim().toUpperCase());
+    localStorage.setItem('drb_deleted_pacientes_v1', JSON.stringify(Array.from(current)));
+  }
+
   // --- OPERACIONES DE PACIENTES ---
   static addPaciente(paciente: Paciente): void {
+    if (paciente.id) this.removeDeletedPatientId(paciente.id);
+    if (paciente.cedula) this.removeDeletedPatientId(paciente.cedula);
+
     const list = this.getPacientes();
     list.unshift(paciente);
     this.savePacientes(list);
@@ -836,6 +888,9 @@ export class StorageService {
   }
 
   static updatePaciente(paciente: Paciente): void {
+    if (paciente.id) this.removeDeletedPatientId(paciente.id);
+    if (paciente.cedula) this.removeDeletedPatientId(paciente.cedula);
+
     const list = this.getPacientes().map(p => p.id === paciente.id ? paciente : p);
     this.savePacientes(list);
 
@@ -845,17 +900,22 @@ export class StorageService {
     }
   }
 
-  static deletePaciente(patientId: string): void {
+  static async deletePaciente(patientId: string): Promise<void> {
     const targetPatient = this.getPacientes().find(p => p.id === patientId);
-    if (!targetPatient) return;
+    
+    // Registrar identificadores en lista de borrados permanentes para evitar resurrección en auto-sync
+    this.addDeletedPatientId(patientId);
+    if (targetPatient?.cedula) {
+      this.addDeletedPatientId(targetPatient.cedula);
+    }
 
-    // 1. Eliminar Paciente de la lista
+    // 1. Eliminar Paciente de la lista local
     const pacientes = this.getPacientes().filter(p => p.id !== patientId);
     this.savePacientes(pacientes);
 
     // 2. Eliminar Pagos vinculados
-    const targetCedula = (targetPatient.cedula || '').trim().toLowerCase();
-    const targetNombre = (targetPatient.nombre || '').trim().toLowerCase();
+    const targetCedula = (targetPatient?.cedula || '').trim().toLowerCase();
+    const targetNombre = (targetPatient?.nombre || '').trim().toLowerCase();
 
     const pagos = this.getPagos().filter(p => {
       if (!p) return false;
@@ -878,10 +938,18 @@ export class StorageService {
     const reintegros = this.getReintegros().filter(r => r.pacienteId !== patientId);
     this.saveReintegros(reintegros);
 
-    // 6. Sync en segundo plano con Google Sheets si existe URL
+    // 6. Eliminar en Google Sheets en vivo
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'deletePaciente', pacienteId: patientId }).catch(console.error);
+      try {
+        await GasService.sendPost(gasUrl, {
+          action: 'deletePaciente',
+          pacienteId: patientId,
+          cedula: targetPatient?.cedula || ''
+        });
+      } catch (e) {
+        console.warn('Error al borrar paciente en Google Sheets:', e);
+      }
     }
   }
 
@@ -1194,15 +1262,58 @@ export class StorageService {
     try {
       const data = await GasService.sendGet(gasUrl, 'getAllData');
       if (data && data.success) {
-        // 1. Pacientes: Fuente de la verdad = Google Sheets
+        const deletedPatientIds = this.getDeletedPatientIds();
+
+        // 1. Pacientes: Fuente de la verdad = Google Sheets (excluyendo registros eliminados)
         if (data.pacientes && Array.isArray(data.pacientes)) {
-          const remotePacientes = data.pacientes.map(normalizePaciente).filter(p => p && p.id);
+          const localPacientesMap = new Map<string, Paciente>();
+          this.getPacientes().forEach(p => {
+            if (p.id) localPacientesMap.set(p.id, p);
+          });
+
+          const remotePacientes = data.pacientes
+            .map(normalizePaciente)
+            .filter(p => {
+              if (!p || !p.id) return false;
+              const pIdUpper = String(p.id).trim().toUpperCase();
+              const pCedUpper = String(p.cedula || '').trim().toUpperCase();
+              const isDeleted = deletedPatientIds.has(pIdUpper) || (pCedUpper && deletedPatientIds.has(pCedUpper));
+              
+              if (isDeleted && gasUrl) {
+                // Notificar en segundo plano a Google Sheets para que elimine el registro si aún existía allí
+                GasService.sendPost(gasUrl, {
+                  action: 'deletePaciente',
+                  pacienteId: p.id,
+                  cedula: p.cedula || ''
+                }).catch(() => {});
+                return false;
+              }
+              return true;
+            })
+            .map(p => {
+              const local = localPacientesMap.get(p.id);
+              // Si el remoto vino sin teléfono válido pero el local sí tiene un teléfono real guardado, preservar el local y actualizar en GAS
+              if ((!p.telefono || p.telefono === 'No especificado' || p.telefono.includes('#ERROR')) && local && local.telefono && !local.telefono.includes('#ERROR') && local.telefono !== 'No especificado') {
+                p.telefono = local.telefono;
+                if (gasUrl) {
+                  GasService.sendPost(gasUrl, { action: 'updatePaciente', paciente: p }).catch(() => {});
+                }
+              }
+              return p;
+            });
           this.savePacientes(remotePacientes);
         }
 
         // 2. Pagos: Fuente de la verdad = Google Sheets
         if (data.pagos && Array.isArray(data.pagos)) {
-          const remotePagos = data.pagos.map(normalizePago).filter(p => p && p.cod);
+          const remotePagos = data.pagos
+            .map(normalizePago)
+            .filter(p => {
+              if (!p || !p.cod) return false;
+              const pIdUpper = String(p.id || '').trim().toUpperCase();
+              if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
+              return true;
+            });
           this.savePagos(remotePagos);
         }
 
@@ -1226,19 +1337,40 @@ export class StorageService {
 
         // 4. Actividades CRM: Fuente de la verdad = Google Sheets
         if (data.actividades && Array.isArray(data.actividades)) {
-          const remoteCRM = data.actividades.map(normalizeActividad).filter(a => a && a.actividadId);
+          const remoteCRM = data.actividades
+            .map(normalizeActividad)
+            .filter(a => {
+              if (!a || !a.actividadId) return false;
+              const pIdUpper = String(a.pacienteId || '').trim().toUpperCase();
+              if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
+              return true;
+            });
           this.saveActividades(remoteCRM);
         }
 
         // 5. Financiamientos: Fuente de la verdad = Google Sheets
         if (data.financiamientos && Array.isArray(data.financiamientos)) {
-          const remoteFin = data.financiamientos.map(normalizeFinanciamiento).filter(f => f && f.planId);
+          const remoteFin = data.financiamientos
+            .map(normalizeFinanciamiento)
+            .filter(f => {
+              if (!f || !f.planId) return false;
+              const pIdUpper = String(f.pacienteId || '').trim().toUpperCase();
+              if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
+              return true;
+            });
           this.saveFinanciamientos(remoteFin);
         }
 
         // 6. Reintegros: Fuente de la verdad = Google Sheets
         if (data.reintegros && Array.isArray(data.reintegros)) {
-          const remoteReint = data.reintegros.map(normalizeReintegro).filter(r => r && r.reintegroId);
+          const remoteReint = data.reintegros
+            .map(normalizeReintegro)
+            .filter(r => {
+              if (!r || !r.reintegroId) return false;
+              const pIdUpper = String(r.pacienteId || '').trim().toUpperCase();
+              if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
+              return true;
+            });
           this.saveReintegros(remoteReint);
         }
 
