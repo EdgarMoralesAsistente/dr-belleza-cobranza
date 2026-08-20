@@ -30,7 +30,7 @@ export class GasService {
   static async sendPost(gasUrl: string, payload: any): Promise<any> {
     const cleanUrl = this.normalizeUrl(gasUrl);
     if (!cleanUrl) {
-      throw new Error('URL de Google Apps Script no configurada.');
+      return { success: false, message: 'URL de Google Apps Script no configurada.' };
     }
 
     try {
@@ -42,13 +42,23 @@ export class GasService {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-      return data;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: true, message: text };
+      }
     } catch (err: any) {
-      console.error('Error enviando petición a Apps Script:', err);
-      throw new Error(
-        'No se pudo conectar con Google Apps Script. Verifica que la URL termine en /exec y que el despliegue en Google Apps Script tenga "Quién tiene acceso" en "Cualquier persona" (Anyone).'
-      );
+      console.warn('Aviso enviando petición a Apps Script:', err?.message || err);
+      return {
+        success: false,
+        error: err?.message || 'Failed to fetch',
+        message: 'No se pudo conectar con Google Apps Script. Verifica que la URL termine en /exec y que el despliegue tenga acceso "Cualquier persona" (Anyone).'
+      };
     }
   }
 
@@ -58,7 +68,7 @@ export class GasService {
   static async sendGet(gasUrl: string, action: string): Promise<any> {
     const cleanUrl = this.normalizeUrl(gasUrl);
     if (!cleanUrl) {
-      throw new Error('URL de Google Apps Script no configurada.');
+      return { success: false, message: 'URL de Google Apps Script no configurada.' };
     }
 
     const separator = cleanUrl.includes('?') ? '&' : '?';
@@ -66,13 +76,22 @@ export class GasService {
 
     try {
       const response = await fetch(url, { method: 'GET' });
-      const data = await response.json();
-      return data;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: false, error: 'Respuesta no válida de Apps Script' };
+      }
     } catch (err: any) {
-      console.error('Error consultando Apps Script:', err);
-      throw new Error(
-        'No se pudo obtener información de Google Apps Script. Revisa que el despliegue permita el acceso a "Cualquier persona" (Anyone) y que la URL termine en /exec.'
-      );
+      console.warn('Aviso consultando Apps Script:', err?.message || err);
+      return {
+        success: false,
+        error: err?.message || 'Failed to fetch',
+        message: 'No se pudo obtener información de Google Apps Script. Revisa que el despliegue permita acceso a "Cualquier persona" (Anyone).'
+      };
     }
   }
 

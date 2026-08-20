@@ -57,62 +57,47 @@ export default function App() {
 
   // Cargar datos al inicio
   const refreshData = () => {
-    setPacientes(StorageService.getPacientes());
+    const freshPacientes = StorageService.getPacientes();
+    setPacientes(freshPacientes);
     setPagos(StorageService.getPagos());
     setUsuarios(StorageService.getUsuarios());
     setActividades(StorageService.getActividades());
     setFinanciamientos(StorageService.getFinanciamientos());
     setReintegros(StorageService.getReintegros());
+
+    setSelectedPatient360(prev => {
+      if (!prev) return null;
+      const found = freshPacientes.find(p => p.id === prev.id || (prev.cedula && p.cedula === prev.cedula));
+      return found || prev;
+    });
   };
 
   useEffect(() => {
     refreshData();
 
-    // Auto-sincronización inicial desde Google Sheets si existe URL configurada
+    // Carga inicial limpia desde Google Sheets si existe URL configurada
     const gasUrl = StorageService.getGasUrl();
     if (gasUrl) {
       StorageService.syncFromGas()
         .then((res) => {
-          if (res.success) {
+          if (res && res.success) {
             refreshData();
           }
         })
-        .catch(console.error);
+        .catch((err) => {
+          console.warn('Aviso sincronización inicial:', err?.message || err);
+        });
     }
 
-    // Escuchar eventos de cambios en LocalStorage o enfoque de ventana para mantener sincro entre tabs/dispositivos
+    // Escuchar eventos de cambios en LocalStorage para mantener reactividad entre pestañas
     const handleStorageChange = () => {
       refreshData();
     };
 
-    const handleFocus = () => {
-      refreshData();
-      if (gasUrl) {
-        StorageService.syncFromGas().then((res) => {
-          if (res.success) refreshData();
-        }).catch(console.error);
-      }
-    };
-
-    // Sincronización periódica cada 10 segundos en segundo plano si hay URL configurada
-    const intervalId = setInterval(() => {
-      const currentGasUrl = StorageService.getGasUrl();
-      if (currentGasUrl) {
-        StorageService.syncFromGas()
-          .then((res) => {
-            if (res.success) refreshData();
-          })
-          .catch(console.error);
-      }
-    }, 10000);
-
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('focus', handleFocus);
 
     return () => {
-      clearInterval(intervalId);
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 

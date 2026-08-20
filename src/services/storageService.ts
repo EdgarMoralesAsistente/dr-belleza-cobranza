@@ -380,12 +380,48 @@ export class StorageService {
     } else {
       list = [];
     }
-    return list.map(normalizePaciente);
+
+    const normalized = list.map(normalizePaciente);
+    const unique: Paciente[] = [];
+    const seenIds = new Set<string>();
+    const seenCedulas = new Set<string>();
+
+    for (const p of normalized) {
+      if (!p || !p.id) continue;
+      const idKey = String(p.id).trim().toUpperCase();
+      const cedKey = String(p.cedula || '').trim().toUpperCase();
+
+      if (idKey && seenIds.has(idKey)) continue;
+      if (cedKey && cedKey !== 'V-00000000' && seenCedulas.has(cedKey)) continue;
+
+      if (idKey) seenIds.add(idKey);
+      if (cedKey && cedKey !== 'V-00000000') seenCedulas.add(cedKey);
+      unique.push(p);
+    }
+
+    return unique;
   }
 
   static savePacientes(list: Paciente[]): void {
     const normalized = (list || []).map(normalizePaciente);
-    localStorage.setItem(KEYS.PACIENTES, JSON.stringify(normalized));
+    const unique: Paciente[] = [];
+    const seenIds = new Set<string>();
+    const seenCedulas = new Set<string>();
+
+    for (const p of normalized) {
+      if (!p || !p.id) continue;
+      const idKey = String(p.id).trim().toUpperCase();
+      const cedKey = String(p.cedula || '').trim().toUpperCase();
+
+      if (idKey && seenIds.has(idKey)) continue;
+      if (cedKey && cedKey !== 'V-00000000' && seenCedulas.has(cedKey)) continue;
+
+      if (idKey) seenIds.add(idKey);
+      if (cedKey && cedKey !== 'V-00000000') seenCedulas.add(cedKey);
+      unique.push(p);
+    }
+
+    localStorage.setItem(KEYS.PACIENTES, JSON.stringify(unique));
     window.dispatchEvent(new Event('storage'));
   }
 
@@ -407,7 +443,18 @@ export class StorageService {
 
   static savePagos(list: Pago[]): void {
     const normalized = (list || []).map(normalizePago);
-    localStorage.setItem(KEYS.PAGOS, JSON.stringify(normalized));
+    const unique: Pago[] = [];
+    const seenCods = new Set<string>();
+
+    for (const p of normalized) {
+      if (!p || !p.cod) continue;
+      const codKey = String(p.cod).trim().toUpperCase();
+      if (seenCods.has(codKey)) continue;
+      seenCods.add(codKey);
+      unique.push(p);
+    }
+
+    localStorage.setItem(KEYS.PAGOS, JSON.stringify(unique));
     window.dispatchEvent(new Event('storage'));
   }
 
@@ -967,7 +1014,9 @@ export class StorageService {
     // Sync si hay URL
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'addPaciente', paciente }).catch(console.error);
+      GasService.sendPost(gasUrl, { action: 'addPaciente', paciente }).catch(err => {
+        console.warn('Aviso sincronización GAS (addPaciente):', err?.message || err);
+      });
     }
   }
 
@@ -984,7 +1033,9 @@ export class StorageService {
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'updatePaciente', paciente }).catch(console.error);
+      GasService.sendPost(gasUrl, { action: 'updatePaciente', paciente }).catch(err => {
+        console.warn('Aviso sincronización GAS (updatePaciente):', err?.message || err);
+      });
     }
   }
 
@@ -1075,7 +1126,7 @@ export class StorageService {
         action: 'addPago',
         pago,
         financiamiento: updatedFin
-      }).catch(console.error);
+      }).catch(err => console.warn('Aviso sincronización GAS (addPago):', err?.message || err));
     }
   }
 
@@ -1087,7 +1138,9 @@ export class StorageService {
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'addCRM', actividad }).catch(console.error);
+      GasService.sendPost(gasUrl, { action: 'addCRM', actividad }).catch(err =>
+        console.warn('Aviso sincronización GAS (addCRM):', err?.message || err)
+      );
     }
   }
 
@@ -1097,7 +1150,9 @@ export class StorageService {
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'updateCRM', actividad }).catch(console.error);
+      GasService.sendPost(gasUrl, { action: 'updateCRM', actividad }).catch(err =>
+        console.warn('Aviso sincronización GAS (updateCRM):', err?.message || err)
+      );
     }
   }
 
@@ -1114,7 +1169,9 @@ export class StorageService {
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'saveFinanciamiento', financiamiento: plan }).catch(console.error);
+      GasService.sendPost(gasUrl, { action: 'saveFinanciamiento', financiamiento: plan }).catch(err =>
+        console.warn('Aviso sincronización GAS (saveFinanciamiento):', err?.message || err)
+      );
     }
   }
 
@@ -1225,7 +1282,7 @@ export class StorageService {
         action: 'solicitarReintegro',
         reintegro: nuevoReintegro,
         financiamiento: plan
-      }).catch(console.error);
+      }).catch(err => console.warn('Aviso sincronización GAS (solicitarReintegro):', err?.message || err));
     }
 
     return nuevoReintegro;
@@ -1306,7 +1363,7 @@ export class StorageService {
         reintegro: reint,
         pago: nuevoPagoEgreso,
         financiamiento: updatedFin
-      }).catch(console.error);
+      }).catch(err => console.warn('Aviso sincronización GAS (registrarPagoReintegro):', err?.message || err));
     }
 
     return {
@@ -1336,7 +1393,9 @@ export class StorageService {
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario }).catch(console.error);
+      GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario }).catch(err =>
+        console.warn('Aviso sincronización GAS (saveUsuario):', err?.message || err)
+      );
     }
   }
 

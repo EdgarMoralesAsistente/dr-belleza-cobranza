@@ -173,31 +173,15 @@ function doPost(e) {
 
     const action = contents.action;
 
-    if (action === 'addPaciente') {
+    if (action === 'addPaciente' || action === 'updatePaciente') {
       const p = contents.paciente;
-      appendRow(SHEETS.PACIENTES, [
-        p.id, p.cedula, p.nombre, p.genero, p.correo, p.telefono,
-        p.contactada, p.fecha, p.promocion, p.procedimiento, p.direccion
-      ]);
-      return responseJSON({ success: true, message: 'Paciente registrado exitosamente' });
-    }
-
-    if (action === 'updatePaciente') {
-      const p = contents.paciente;
-      updateRowById(SHEETS.PACIENTES, 0, p.id, [
-        p.id, p.cedula, p.nombre, p.genero, p.correo, p.telefono,
-        p.contactada, p.fecha, p.promocion, p.procedimiento, p.direccion
-      ]);
-      return responseJSON({ success: true, message: 'Paciente actualizado' });
+      updateOrAppendPaciente(p);
+      return responseJSON({ success: true, message: 'Paciente guardado y sincronizado exitosamente' });
     }
 
     if (action === 'addPago') {
       const pago = contents.pago;
-      appendRow(SHEETS.PAGOS, [
-        pago.fecha, pago.cod, pago.id, pago.nombre, pago.descripcion, pago.metodoDePago,
-        pago.referencia, pago.cargo, pago.abono, pago.diasVcto, pago.estatus,
-        pago.mesProximaAccion, pago.fechaProximaAccion, pago.proximaAccion
-      ]);
+      updateOrAppendPago(pago);
 
       // Si incluye actualización de financiamiento
       if (contents.financiamiento) {
@@ -465,6 +449,53 @@ function updateRowById(sheetName, idColumnIndex, targetId, newRowArray) {
   }
   // Si no se encuentra, append
   appendRow(sheetName, newRowArray);
+}
+
+function updateOrAppendPaciente(p) {
+  const sheet = getOrCreateSheet(SHEETS.PACIENTES);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanRow = sanitizeRow([
+    p.id, p.cedula, p.nombre, p.genero, p.correo, p.telefono,
+    p.contactada, p.fecha, p.promocion, p.procedimiento, p.direccion
+  ]);
+  const targetId = String(p.id || '').trim().toUpperCase();
+  const targetCedula = String(p.cedula || '').trim().toUpperCase();
+
+  for (let i = 1; i < values.length; i++) {
+    const rowId = String(values[i][0] || '').trim().toUpperCase();
+    const rowCedula = String(values[i][1] || '').trim().toUpperCase();
+    if ((targetId && rowId === targetId) || (targetCedula && targetCedula !== 'V-00000000' && rowCedula === targetCedula)) {
+      const targetRow = i + 1;
+      sheet.getRange(targetRow, 2).setNumberFormat('@');
+      sheet.getRange(targetRow, 6).setNumberFormat('@');
+      sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
+      return;
+    }
+  }
+  appendRow(SHEETS.PACIENTES, cleanRow);
+}
+
+function updateOrAppendPago(pago) {
+  const sheet = getOrCreateSheet(SHEETS.PAGOS);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanRow = sanitizeRow([
+    pago.fecha, pago.cod, pago.id, pago.nombre, pago.descripcion, pago.metodoDePago,
+    pago.referencia, pago.cargo, pago.abono, pago.diasVcto, pago.estatus,
+    pago.mesProximaAccion, pago.fechaProximaAccion, pago.proximaAccion
+  ]);
+  const targetCod = String(pago.cod || '').trim().toUpperCase();
+
+  for (let i = 1; i < values.length; i++) {
+    const rowCod = String(values[i][1] || '').trim().toUpperCase();
+    if (targetCod && rowCod === targetCod) {
+      const targetRow = i + 1;
+      sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
+      return;
+    }
+  }
+  appendRow(SHEETS.PAGOS, cleanRow);
 }
 
 function updateOrAppendRow(sheetName, idColumnIndex, targetId, newRowArray) {
