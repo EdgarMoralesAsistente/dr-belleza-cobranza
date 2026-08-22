@@ -160,6 +160,24 @@ export const INITIAL_USUARIOS: Usuario[] = [
     rol: 'Administrador',
     estatus: 'Activo',
     fechaCreacion: '2026-01-01'
+  },
+  {
+    usuarioId: 'USR-002',
+    nombre: 'Dr. Alejandro Mendoza',
+    email: 'mendoza@drbelleza.com',
+    passwordHash: '123456',
+    rol: 'Médico',
+    estatus: 'Activo',
+    fechaCreacion: '2026-01-05'
+  },
+  {
+    usuarioId: 'USR-003',
+    nombre: 'Valeria Sánchez (Recepción)',
+    email: 'valeria@drbelleza.com',
+    passwordHash: '123456',
+    rol: 'Asistente',
+    estatus: 'Activo',
+    fechaCreacion: '2026-01-10'
   }
 ];
 

@@ -428,6 +428,7 @@ export const SettingsView: React.FC = () => {
                     >
                       <option value="Contorno Corporal">Contorno Corporal</option>
                       <option value="Mamas">Mamas / Busto</option>
+                      <option value="Corporal + Mamas">Corporal + Mamas</option>
                       <option value="Facial">Facial & Cuello</option>
                       <option value="Medicina Estética">Medicina Estética / No Invasivo</option>
                     </select>

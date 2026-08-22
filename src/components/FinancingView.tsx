@@ -10,11 +10,12 @@ import {
   Search,
   Users
 } from 'lucide-react';
-import { FinanciamientoCirugia, Paciente } from '../types';
+import { FinanciamientoCirugia, Paciente, RolUsuario, getRolePermissions } from '../types';
 
 interface FinancingViewProps {
   financiamientos: FinanciamientoCirugia[];
   pacientes: Paciente[];
+  userRole?: RolUsuario;
   onNewFinancingPlan: () => void;
   onOpenNewPaymentForPatient: (paciente: Paciente) => void;
   onSelectPatient: (pacienteId: string) => void;
@@ -23,12 +24,15 @@ interface FinancingViewProps {
 export const FinancingView: React.FC<FinancingViewProps> = ({
   financiamientos,
   pacientes,
+  userRole,
   onNewFinancingPlan,
   onOpenNewPaymentForPatient,
   onSelectPatient
 }) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('Todos');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const permissions = getRolePermissions(userRole);
 
   // Cálculo de KPIs Globales
   const totalFinanciado = financiamientos.reduce((sum, f) => sum + (f.costoTotalCirugia || 0), 0);
@@ -66,13 +70,15 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={onNewFinancingPlan}
-          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>+ Nuevo Plan de Financiamiento</span>
-        </button>
+        {permissions.canCreateFinancingPlan && (
+          <button
+            onClick={onNewFinancingPlan}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Nuevo Plan de Financiamiento</span>
+          </button>
+        )}
       </div>
 
       {/* TARJETAS KPI DE CRÉDITO */}
@@ -206,7 +212,7 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
                     Op. Est.: <strong className="ml-1 text-slate-700">{plan.fechaEstimadaCirugia}</strong>
                   </span>
 
-                  {paciente && (
+                  {permissions.canRegisterPayment && paciente && (
                     <button
                       onClick={() => onOpenNewPaymentForPatient(paciente)}
                       className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs transition-colors flex items-center space-x-1 cursor-pointer"

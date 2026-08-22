@@ -1,4 +1,111 @@
-export type RolUsuario = string;
+export type RolUsuario = 'Administrador' | 'Asistente' | 'Financiero' | 'Médico' | string;
+
+export interface UserPermissions {
+  canAddPatient: boolean;
+  canEditPatient: boolean;
+  canDeleteAnything: boolean;
+  canCreateFinancingPlan: boolean;
+  canRegisterPayment: boolean;
+  canProcessRefund: boolean;
+  canManageCrm: boolean;
+  canAccessDashboard: boolean;
+  canAccessPatients: boolean;
+  canAccessCrm: boolean;
+  canAccessFinancing: boolean;
+  canAccessRefunds: boolean;
+  canAccessPayments: boolean;
+  canAccessUsers: boolean;
+  canAccessSettings: boolean;
+  canAccessGas: boolean;
+}
+
+export function getRolePermissions(role?: string): UserPermissions {
+  const normalized = (role || 'Asistente').trim();
+
+  // Administrador: Acceso a todo sin restricciones de ningún tipo
+  if (normalized === 'Administrador' || normalized.toLowerCase() === 'administrador') {
+    return {
+      canAddPatient: true,
+      canEditPatient: true,
+      canDeleteAnything: true,
+      canCreateFinancingPlan: true,
+      canRegisterPayment: true,
+      canProcessRefund: true,
+      canManageCrm: true,
+      canAccessDashboard: true,
+      canAccessPatients: true,
+      canAccessCrm: true,
+      canAccessFinancing: true,
+      canAccessRefunds: true,
+      canAccessPayments: true,
+      canAccessUsers: true,
+      canAccessSettings: true,
+      canAccessGas: true
+    };
+  }
+
+  if (normalized === 'Financiero') {
+    return {
+      canAddPatient: true,
+      canEditPatient: true,
+      canDeleteAnything: false,
+      canCreateFinancingPlan: false,
+      canRegisterPayment: true,
+      canProcessRefund: true,
+      canManageCrm: true,
+      canAccessDashboard: true,
+      canAccessPatients: true,
+      canAccessCrm: true,
+      canAccessFinancing: true,
+      canAccessRefunds: true,
+      canAccessPayments: true,
+      canAccessUsers: true,
+      canAccessSettings: true,
+      canAccessGas: true
+    };
+  }
+
+  if (normalized === 'Médico' || normalized === 'Medico') {
+    return {
+      canAddPatient: false,
+      canEditPatient: false,
+      canDeleteAnything: false,
+      canCreateFinancingPlan: true,
+      canRegisterPayment: false,
+      canProcessRefund: false,
+      canManageCrm: true,
+      canAccessDashboard: true,
+      canAccessPatients: true,
+      canAccessCrm: true,
+      canAccessFinancing: true,
+      canAccessRefunds: false,
+      canAccessPayments: false,
+      canAccessUsers: false,
+      canAccessSettings: false,
+      canAccessGas: true
+    };
+  }
+
+  // Asistente (Default): Sólo lectura en Dashboard y Pacientes/Ficha 360°, pero gestión completa de Agenda & Alarmas CRM
+  return {
+    canAddPatient: false,
+    canEditPatient: false,
+    canDeleteAnything: false,
+    canCreateFinancingPlan: false,
+    canRegisterPayment: false,
+    canProcessRefund: false,
+    canManageCrm: true,
+    canAccessDashboard: true,
+    canAccessPatients: true,
+    canAccessCrm: true,
+    canAccessFinancing: false,
+    canAccessRefunds: false,
+    canAccessPayments: false,
+    canAccessUsers: false,
+    canAccessSettings: false,
+    canAccessGas: false
+  };
+}
 
 export interface Paciente {
   id: string; // Ej: P-2026-0130

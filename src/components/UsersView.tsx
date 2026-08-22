@@ -14,7 +14,7 @@ import {
   Lock,
   ShieldAlert
 } from 'lucide-react';
-import { Usuario, RolUsuario } from '../types';
+import { Usuario, RolUsuario, getRolePermissions } from '../types';
 import { StorageService } from '../services/storageService';
 
 interface UsersViewProps {
@@ -22,16 +22,20 @@ interface UsersViewProps {
   currentUser: Usuario;
   onNewUser: () => void;
   onUpdateUser: (usuario: Usuario) => void;
+  onDeleteUser?: (usuarioId: string) => void;
 }
 
 export const UsersView: React.FC<UsersViewProps> = ({
   usuarios,
   currentUser,
   onNewUser,
-  onUpdateUser
+  onUpdateUser,
+  onDeleteUser
 }) => {
-  // Verificación de acceso para Rol Administrador
-  if (currentUser.rol !== 'Administrador') {
+  const permissions = getRolePermissions(currentUser.rol);
+
+  // Verificación de acceso para Gestión de Usuarios
+  if (!permissions.canAccessUsers) {
     return (
       <div className="p-8 max-w-2xl mx-auto my-12 text-center space-y-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
@@ -39,11 +43,11 @@ export const UsersView: React.FC<UsersViewProps> = ({
         </div>
         <h2 className="text-xl font-bold text-slate-800">Acceso Restringido - Gestión de Usuarios</h2>
         <p className="text-xs text-slate-600 leading-relaxed">
-          El módulo de <strong>Gestión de Usuarios</strong> está reservado exclusivamente para personal con el rol de <strong className="text-slate-900">Administrador</strong>.
+          El módulo de <strong>Gestión de Usuarios</strong> está reservado para perfiles con privilegios administrativos o financieros autorizados.
         </p>
         <div className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full text-xs font-semibold">
           <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-          <span>Tu rol actual es: <strong>{currentUser.rol}</strong></span>
+          <span>Tu perfil actual es: <strong>{currentUser.rol}</strong></span>
         </div>
       </div>
     );
@@ -268,6 +272,28 @@ export const UsersView: React.FC<UsersViewProps> = ({
                       >
                         {u.estatus === 'Activo' ? 'Desactivar' : 'Activar'}
                       </button>
+
+                      {onDeleteUser && (
+                        <button
+                          onClick={() => {
+                            const isEdgar = u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+                            const isCurrentEdgar = currentUser.email && currentUser.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+                            
+                            if (isEdgar && !isCurrentEdgar) {
+                              alert('El usuario Edgar Morales (Administrador Principal) está protegido y nadie más puede eliminarlo.');
+                              return;
+                            }
+
+                            if (confirm(`¿Estás seguro de eliminar permanentemente al usuario ${u.nombre} (${u.email})?`)) {
+                              onDeleteUser(u.usuarioId);
+                            }
+                          }}
+                          className="px-2 py-1 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer transition-colors font-semibold text-[11px]"
+                          title="Eliminar usuario"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -2,6 +2,7 @@ import {
   Paciente,
   Pago,
   Usuario,
+  RolUsuario,
   ActividadCRM,
   FinanciamientoCirugia,
   Reintegro,
@@ -36,6 +37,15 @@ const KEYS = {
 };
 
 const DEFAULT_USER_ROLES = ['Administrador', 'Asistente', 'Financiero', 'Médico'];
+
+export function normalizeUserRole(rawRole: any): RolUsuario {
+  const str = String(rawRole || '').trim();
+  if (str === 'Administrador' || str.toLowerCase() === 'administrador') return 'Administrador';
+  if (str === 'Financiero' || str.toLowerCase() === 'financiero') return 'Financiero';
+  if (str === 'Médico' || str === 'Medico' || str.toLowerCase() === 'medico') return 'Médico';
+  if (str === 'Asistente' || str.toLowerCase() === 'asistente') return 'Asistente';
+  return str || 'Asistente';
+}
 
 export function cleanField(val: any, fallback = ''): string {
   if (val === undefined || val === null) return fallback;
@@ -135,7 +145,7 @@ export function normalizeUsuario(u: any): Usuario {
     nombre: String(u.nombre || u.Nombre || u.NOMBRE || 'Usuario'),
     email: String(u.email || u.Email || u.EMAIL || 'usuario@drbelleza.com'),
     passwordHash: String(u.passwordHash || u.Password_Hash || u.password_hash || u.password || '123456'),
-    rol: (u.rol || u.Rol || u.ROL || 'Asistente') as any,
+    rol: normalizeUserRole(u.rol || u.Rol || u.ROL),
     estatus: (u.estatus || u.Estatus || u.ESTATUS || 'Activo') as any,
     fechaCreacion: String(u.fechaCreacion || u.Fecha_Creacion || u.fecha_creacion || new Date().toISOString().split('T')[0]),
     fotoUrl: u.fotoUrl || u.Foto_Url || u.foto_url || undefined
@@ -484,9 +494,17 @@ export class StorageService {
     const initialCount = list.length;
     list = list.filter(u => u && u.email && !oldDemoEmails.includes(u.email.toLowerCase()));
 
-    const edgarExists = list.some(u => u && u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
-    if (!edgarExists) {
+    let edgarIndex = list.findIndex(u => u && u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+    if (edgarIndex === -1) {
       list = [INITIAL_USUARIOS[0], ...list];
+    } else {
+      // Asegurar que Edgar Morales siempre tenga el rol de Administrador
+      list[edgarIndex] = {
+        ...list[edgarIndex],
+        nombre: list[edgarIndex].nombre || 'Edgar Morales',
+        rol: 'Administrador',
+        estatus: 'Activo'
+      };
     }
 
     if (list.length !== initialCount || !data) {
@@ -506,7 +524,10 @@ export class StorageService {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sanitized = Array.from(new Set(parsed.map(r => normalizeUserRole(r))));
+          return sanitized;
+        }
       } catch (e) {
         console.error(e);
       }
@@ -515,7 +536,8 @@ export class StorageService {
   }
 
   static saveUserRoles(roles: string[]): void {
-    localStorage.setItem(KEYS.USER_ROLES, JSON.stringify(roles));
+    const sanitized = Array.from(new Set(roles.map(r => normalizeUserRole(r))));
+    localStorage.setItem(KEYS.USER_ROLES, JSON.stringify(sanitized));
     window.dispatchEvent(new Event('storage'));
   }
 
@@ -768,7 +790,13 @@ export class StorageService {
     const data = localStorage.getItem(KEYS.CURRENT_USER);
     if (isLoggedIn && data) {
       try {
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...parsed,
+            rol: normalizeUserRole(parsed.rol)
+          };
+        }
       } catch (e) {
         return null;
       }
@@ -780,7 +808,11 @@ export class StorageService {
     const authUser = this.getAuthenticatedUser();
     if (authUser) return authUser;
     const users = this.getUsuarios();
-    return users[0] || INITIAL_USUARIOS[0];
+    const user = users[0] || INITIAL_USUARIOS[0];
+    return {
+      ...user,
+      rol: normalizeUserRole(user.rol)
+    };
   }
 
   static setCurrentUser(user: Usuario): void {
@@ -1377,26 +1409,62 @@ export class StorageService {
   // --- OPERACIONES DE USUARIOS ---
   static saveUsuario(usuario: Usuario): void {
     const list = this.getUsuarios();
-    const index = list.findIndex(u => u.usuarioId === usuario.usuarioId);
+    const isEdgar = usuario.email && usuario.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+    const userToSave: Usuario = isEdgar
+      ? { ...usuario, rol: 'Administrador', estatus: 'Activo' }
+      : usuario;
+
+    const index = list.findIndex(u => u.usuarioId === userToSave.usuarioId || (u.email && u.email.toLowerCase() === userToSave.email.toLowerCase()));
     if (index !== -1) {
-      list[index] = usuario;
+      list[index] = userToSave;
     } else {
-      list.push(usuario);
+      list.push(userToSave);
     }
     this.saveUsuarios(list);
 
     // Si se actualizó el usuario que tiene sesión activa, actualizar la sesión
     const current = this.getAuthenticatedUser();
-    if (current && current.usuarioId === usuario.usuarioId) {
-      this.setCurrentUser(usuario);
+    if (current && (current.usuarioId === userToSave.usuarioId || current.email.toLowerCase() === userToSave.email.toLowerCase())) {
+      this.setCurrentUser(userToSave);
     }
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario }).catch(err =>
+      GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: userToSave }).catch(err =>
         console.warn('Aviso sincronización GAS (saveUsuario):', err?.message || err)
       );
     }
+  }
+
+  static deleteUsuario(usuarioId: string, callerUser?: Usuario): { success: boolean; message: string } {
+    const list = this.getUsuarios();
+    const target = list.find(u => u.usuarioId === usuarioId);
+    if (!target) {
+      return { success: false, message: 'Usuario no encontrado.' };
+    }
+
+    const isEdgar = target.email && target.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+    if (isEdgar) {
+      const isCallerEdgar = callerUser && callerUser.email && callerUser.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+      if (!isCallerEdgar) {
+        return {
+          success: false,
+          message: 'El usuario Edgar Morales (Administrador Principal) no puede ser eliminado por nadie excepto por él mismo.'
+        };
+      }
+    }
+
+    const updated = list.filter(u => u.usuarioId !== usuarioId);
+    this.saveUsuarios(updated);
+
+    const gasUrl = this.getGasUrl();
+    if (gasUrl) {
+      GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId, email: target.email }).catch(err =>
+        console.warn('Aviso sincronización GAS (deleteUsuario):', err?.message || err)
+      );
+    }
+
+    return { success: true, message: `Usuario ${target.nombre} eliminado correctamente.` };
   }
 
   // --- SINCRONIZACIÓN COMPLETA DESDE GOOGLE SHEETS ---
@@ -1500,9 +1568,15 @@ export class StorageService {
           ];
           remoteUsuarios = remoteUsuarios.filter(u => !oldDemoEmails.includes(u.email.toLowerCase()));
 
-          const edgarExists = remoteUsuarios.some(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
-          if (!edgarExists) {
+          let edgarIdx = remoteUsuarios.findIndex(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+          if (edgarIdx === -1) {
             remoteUsuarios = [INITIAL_USUARIOS[0], ...remoteUsuarios];
+          } else {
+            remoteUsuarios[edgarIdx] = {
+              ...remoteUsuarios[edgarIdx],
+              rol: 'Administrador',
+              estatus: 'Activo'
+            };
           }
           this.saveUsuarios(remoteUsuarios);
         }

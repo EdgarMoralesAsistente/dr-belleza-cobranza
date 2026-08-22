@@ -14,11 +14,11 @@ import {
   Trash2,
   AlertTriangle
 } from 'lucide-react';
-import { Paciente } from '../types';
+import { Paciente, getRolePermissions, RolUsuario } from '../types';
 
 interface PatientsViewProps {
   pacientes: Paciente[];
-  userRole?: string;
+  userRole?: RolUsuario;
   onSelectPatient: (pacienteId: string) => void;
   onNewPatient: () => void;
   onDeletePatient?: (pacienteId: string) => void;
@@ -36,7 +36,7 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   const [patientToDelete, setPatientToDelete] = useState<Paciente | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const isAdmin = userRole === 'Administrador';
+  const permissions = getRolePermissions(userRole);
 
   // Filtrado de pacientes por texto o género
   const filteredPatients = pacientes.filter(p => {
@@ -77,13 +77,15 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={onNewPatient}
-          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>+ Registrar Paciente</span>
-        </button>
+        {permissions.canAddPatient && (
+          <button
+            onClick={onNewPatient}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Registrar Paciente</span>
+          </button>
+        )}
       </div>
 
       {/* BARRA DE BÚSQUEDA Y FILTROS */}
@@ -160,11 +162,11 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
                   <span>Ver Ficha 360°</span>
                 </button>
 
-                {isAdmin && (
+                {permissions.canDeleteAnything && (
                   <button
                     onClick={() => setPatientToDelete(p)}
                     className="p-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-lg transition-all cursor-pointer shrink-0"
-                    title="Eliminar paciente y todos sus registros"
+                    title="Eliminar paciente"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -235,11 +237,11 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
                           <span>Ficha 360°</span>
                         </button>
 
-                        {isAdmin && (
+                        {permissions.canDeleteAnything && (
                           <button
                             onClick={() => setPatientToDelete(p)}
                             className="p-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-lg transition-all cursor-pointer"
-                            title="Eliminar paciente y todo su historial (Administrador)"
+                            title="Eliminar paciente"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

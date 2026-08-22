@@ -5,13 +5,14 @@
  * INSTRUCCIONES DE DESPLIEGUE:
  * 1. Crea un nuevo Google Sheet en Google Drive llamado "Dr. Belleza - BD Médica".
  * 2. Ve a Extensiones -> Apps Script.
- * 3. Borra todo el código existente e inserta este archivo Code.gs.
- * 4. Selecciona la función 'setupSpreadsheet' en la barra superior y haz clic en 'Ejecutar'.
+ * 3. Borra el código existente y pega este archivo Code.gs por completo.
+ * 4. Ejecuta la función 'setupSpreadsheet()' una vez para crear las 6 pestañas automáticamente.
  * 5. Haz clic en 'Desplegar' -> 'Nuevo Despliegue'.
  * 6. Selecciona Tipo: 'Aplicación Web'.
  * 7. Ejecutar como: 'Yo (tu cuenta)'.
  * 8. Quién tiene acceso: 'Cualquier persona' (Anyone).
- * 9. Copia la URL que termina en /exec y pégala en la aplicación web.
+ * 9. Haz clic en 'Desplegar', autoriza los permisos y copia la URL de la Web App generada.
+ * 10. Pega esa URL en la configuración de la Web App Dr. Belleza.
  */
 
 const SPREADSHEET = SpreadsheetApp.getActiveSpreadsheet();
@@ -22,7 +23,8 @@ const SHEETS = {
   PAGOS: 'Pagos',
   USUARIOS: 'Usuarios',
   ACTIVIDADES: 'Actividades_CRM',
-  FINANCIAMIENTO: 'Financiamiento_Cirugias'
+  FINANCIAMIENTO: 'Financiamiento_Cirugias',
+  REINTEGROS: 'Reintegros_Financiamiento'
 };
 
 /**
@@ -40,6 +42,8 @@ function setupSpreadsheet() {
     "ID", "cedula", "NOMBRE", "GENERO", "CORREO", "TELEFONO",
     "CONTACTADA", "FECHA", "promocion", "procedimiento", "DIRECCION"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
+  sheetPacientes.getRange("B:B").setNumberFormat('@');
+  sheetPacientes.getRange("F:F").setNumberFormat('@');
 
   // 2. Pestaña Pagos
   let sheetPagos = ss.getSheetByName(SHEETS.PAGOS);
@@ -57,8 +61,8 @@ function setupSpreadsheet() {
   if (!sheetUsuarios) {
     sheetUsuarios = ss.insertSheet(SHEETS.USUARIOS);
   }
-  sheetUsuarios.getRange("A1:G1").setValues([[
-    "Usuario_ID", "Nombre", "Email", "Password_Hash", "Rol", "Estatus", "Fecha_Creacion"
+  sheetUsuarios.getRange("A1:H1").setValues([[
+    "Usuario_ID", "Nombre", "Email", "Password_Hash", "Rol", "Estatus", "Fecha_Creacion", "Foto_Url"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
 
   // 4. Pestaña Actividades_CRM
@@ -82,7 +86,19 @@ function setupSpreadsheet() {
     "Fecha_Inicio", "Fecha_Estimada_Cirugia"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
 
-  return "Estructura de pestañas verificada y creada exitosamente.";
+  // 6. Pestaña Reintegros_Financiamiento
+  let sheetReint = ss.getSheetByName(SHEETS.REINTEGROS);
+  if (!sheetReint) {
+    sheetReint = ss.insertSheet(SHEETS.REINTEGROS);
+  }
+  sheetReint.getRange("A1:O1").setValues([[
+    "Reintegro_ID", "Plan_ID", "Paciente_ID", "Fecha_Solicitud", "Fecha_Aprobacion",
+    "Total_Abonado", "Gastos_Admin_20", "Monto_Neto_Reintegro", "Plazo_Meses",
+    "Es_Excepcion_10Dias", "Monto_Cuota_Mensual", "Monto_Efectivamente_Pagado",
+    "Saldo_Pendiente", "Estado_Reintegro", "Fecha_Estimada_Culminacion"
+  ]]).setFontWeight("bold").setBackground("#cbd5e1");
+
+  return "Estructura de 6 pestañas verificada y creada exitosamente.";
 }
 
 /**
@@ -116,6 +132,10 @@ function doGet(e) {
       return responseJSON({ success: true, data: getSheetData(SHEETS.FINANCIAMIENTO) });
     }
 
+    if (action === 'getReintegros') {
+      return responseJSON({ success: true, data: getSheetData(SHEETS.REINTEGROS) });
+    }
+
     if (action === 'getAllData') {
       return responseJSON({
         success: true,
@@ -123,7 +143,8 @@ function doGet(e) {
         pagos: getSheetData(SHEETS.PAGOS),
         usuarios: getSheetData(SHEETS.USUARIOS),
         actividades: getSheetData(SHEETS.ACTIVIDADES),
-        financiamientos: getSheetData(SHEETS.FINANCIAMIENTO)
+        financiamientos: getSheetData(SHEETS.FINANCIAMIENTO),
+        reintegros: getSheetData(SHEETS.REINTEGROS)
       });
     }
 
@@ -147,31 +168,15 @@ function doPost(e) {
 
     const action = contents.action;
 
-    if (action === 'addPaciente') {
+    if (action === 'addPaciente' || action === 'updatePaciente') {
       const p = contents.paciente;
-      appendRow(SHEETS.PACIENTES, [
-        p.id, p.cedula, p.nombre, p.genero, p.correo, p.telefono,
-        p.contactada, p.fecha, p.promocion, p.procedimiento, p.direccion
-      ]);
-      return responseJSON({ success: true, message: 'Paciente registrado exitosamente' });
-    }
-
-    if (action === 'updatePaciente') {
-      const p = contents.paciente;
-      updateRowById(SHEETS.PACIENTES, 0, p.id, [
-        p.id, p.cedula, p.nombre, p.genero, p.correo, p.telefono,
-        p.contactada, p.fecha, p.promocion, p.procedimiento, p.direccion
-      ]);
-      return responseJSON({ success: true, message: 'Paciente actualizado' });
+      updateOrAppendPaciente(p);
+      return responseJSON({ success: true, message: 'Paciente guardado y sincronizado exitosamente' });
     }
 
     if (action === 'addPago') {
       const pago = contents.pago;
-      appendRow(SHEETS.PAGOS, [
-        pago.fecha, pago.cod, pago.id, pago.nombre, pago.descripcion, pago.metodoDePago,
-        pago.referencia, pago.cargo, pago.abono, pago.diasVcto, pago.estatus,
-        pago.mesProximaAccion, pago.fechaProximaAccion, pago.proximaAccion
-      ]);
+      updateOrAppendPago(pago);
 
       // Si incluye actualización de financiamiento
       if (contents.financiamiento) {
@@ -206,15 +211,89 @@ function doPost(e) {
 
     if (action === 'saveUsuario') {
       const u = contents.usuario;
-      updateOrAppendRow(SHEETS.USUARIOS, 0, u.usuarioId, [
-        u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion
-      ]);
+      updateOrAppendUser(SHEETS.USUARIOS, u);
       return responseJSON({ success: true, message: 'Usuario guardado' });
+    }
+
+    if (action === 'saveFinanciamiento') {
+      const fin = contents.financiamiento;
+      updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
+        fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
+        fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
+        fin.fechaInicio, fin.fechaEstimadaCirugia
+      ]);
+      return responseJSON({ success: true, message: 'Plan de financiamiento guardado' });
+    }
+
+    if (action === 'deletePaciente') {
+      const pId = String(contents.pacienteId || '').trim();
+      const cedula = String(contents.cedula || '').trim();
+      const searchTargets = [pId, cedula].filter(function(t) { return t.length > 0; });
+
+      deleteRowsByMatchingValues(SHEETS.PACIENTES, [0, 1], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.PAGOS, [2], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.ACTIVIDADES, [1], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.FINANCIAMIENTO, [1], searchTargets);
+      deleteRowsByMatchingValues(SHEETS.REINTEGROS, [2], searchTargets);
+      return responseJSON({ success: true, message: 'Paciente y todos sus registros eliminados correctamente.' });
+    }
+
+    if (action === 'solicitarReintegro') {
+      const r = contents.reintegro;
+      appendRow(SHEETS.REINTEGROS, [
+        r.reintegroId, r.planId, r.pacienteId, r.fechaSolicitud, r.fechaAprobacion || '',
+        r.totalAbonado, r.gastosAdmin20, r.montoNetoReintegro, r.plazoMeses,
+        r.esExcepcion10Dias ? 'Sí' : 'No', r.montoCuotaMensual, r.montoEfectivamentePagado,
+        r.saldoPendiente, r.estadoReintegro, r.fechaEstimadaCulminacion
+      ]);
+
+      if (contents.financiamiento) {
+        const fin = contents.financiamiento;
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
+          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
+          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
+          fin.fechaInicio, fin.fechaEstimadaCirugia
+        ]);
+      }
+
+      return responseJSON({ success: true, message: 'Solicitud de reintegro procesada exitosamente' });
+    }
+
+    if (action === 'registrarPagoReintegro') {
+      if (contents.pago) {
+        const pago = contents.pago;
+        appendRow(SHEETS.PAGOS, [
+          pago.fecha, pago.cod, pago.id, pago.nombre, pago.descripcion, pago.metodoDePago,
+          pago.referencia, pago.cargo, pago.abono, pago.diasVcto, pago.estatus,
+          pago.mesProximaAccion, pago.fechaProximaAccion, pago.proximaAccion
+        ]);
+      }
+
+      if (contents.reintegro) {
+        const r = contents.reintegro;
+        updateRowById(SHEETS.REINTEGROS, 0, r.reintegroId, [
+          r.reintegroId, r.planId, r.pacienteId, r.fechaSolicitud, r.fechaAprobacion || '',
+          r.totalAbonado, r.gastosAdmin20, r.montoNetoReintegro, r.plazoMeses,
+          r.esExcepcion10Dias ? 'Sí' : 'No', r.montoCuotaMensual, r.montoEfectivamentePagado,
+          r.saldoPendiente, r.estadoReintegro, r.fechaEstimadaCulminacion
+        ]);
+      }
+
+      if (contents.financiamiento) {
+        const fin = contents.financiamiento;
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
+          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
+          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
+          fin.fechaInicio, fin.fechaEstimadaCirugia
+        ]);
+      }
+
+      return responseJSON({ success: true, message: 'Pago de reintegro registrado correctamente' });
     }
 
     if (action === 'syncFullDatabase') {
       // Reemplazar o volcar toda la base de datos local hacia Sheets
-      const { pacientes, pagos, usuarios, actividades, financiamientos } = contents;
+      const { pacientes, pagos, usuarios, actividades, financiamientos, reintegros } = contents;
       
       if (pacientes && Array.isArray(pacientes)) {
         replaceSheetData(SHEETS.PACIENTES, pacientes.map(p => [
@@ -233,7 +312,7 @@ function doPost(e) {
 
       if (usuarios && Array.isArray(usuarios)) {
         replaceSheetData(SHEETS.USUARIOS, usuarios.map(u => [
-          u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion
+          u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion, u.fotoUrl || ''
         ]));
       }
 
@@ -249,6 +328,15 @@ function doPost(e) {
           f.planId, f.pacienteId, f.procedimiento, f.costoTotalCirugia,
           f.cuotasTotales, f.montoAbonado, f.saldoPendiente, f.estadoFinanciero,
           f.fechaInicio, f.fechaEstimadaCirugia
+        ]));
+      }
+
+      if (reintegros && Array.isArray(reintegros)) {
+        replaceSheetData(SHEETS.REINTEGROS, reintegros.map(r => [
+          r.reintegroId, r.planId, r.pacienteId, r.fechaSolicitud, r.fechaAprobacion || '',
+          r.totalAbonado, r.gastosAdmin20, r.montoNetoReintegro, r.plazoMeses,
+          r.esExcepcion10Dias ? 'Sí' : 'No', r.montoCuotaMensual, r.montoEfectivamentePagado,
+          r.saldoPendiente, r.estadoReintegro, r.fechaEstimadaCulminacion
         ]));
       }
 
@@ -271,6 +359,13 @@ function responseJSON(data) {
 
 function sanitizeVal(val) {
   if (val === undefined || val === null) return '';
+  if (typeof val === 'string') {
+    // Si empieza con +, =, @, -, anteponer comilla simple ' para que Google Sheets lo guarde como texto puro y no intente evaluarlo como fórmula
+    if (/^[+=@\-]/.test(val)) {
+      return "'" + val;
+    }
+    return val;
+  }
   return val;
 }
 
@@ -301,7 +396,16 @@ function getSheetData(sheetName) {
   return rows.map(function(row) {
     const obj = {};
     headers.forEach(function(header, index) {
-      obj[header] = row[index];
+      let cell = row[index];
+      if (typeof cell === 'string') {
+        if (cell.indexOf("'") === 0) {
+          cell = cell.substring(1);
+        }
+        if (cell === '#ERROR!' || cell === '#¡ERROR!' || cell === '#VALUE!' || cell === '#REF!' || cell === '#NAME?') {
+          cell = '';
+        }
+      }
+      obj[header] = cell;
     });
     return obj;
   });
@@ -309,7 +413,14 @@ function getSheetData(sheetName) {
 
 function appendRow(sheetName, rowArray) {
   const sheet = getOrCreateSheet(sheetName);
-  sheet.appendRow(sanitizeRow(rowArray));
+  if (!sheet) return;
+  const cleanRow = sanitizeRow(rowArray);
+  const targetRow = sheet.getLastRow() + 1;
+  if (sheetName === SHEETS.PACIENTES) {
+    sheet.getRange(targetRow, 2).setNumberFormat('@');
+    sheet.getRange(targetRow, 6).setNumberFormat('@');
+  }
+  sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
 }
 
 function updateRowById(sheetName, idColumnIndex, targetId, newRowArray) {
@@ -317,18 +428,94 @@ function updateRowById(sheetName, idColumnIndex, targetId, newRowArray) {
   if (!sheet) return;
   const values = sheet.getDataRange().getValues();
   const cleanRow = sanitizeRow(newRowArray);
+  const targetIdStr = String(targetId || '').trim().toUpperCase();
+
   for (let i = 1; i < values.length; i++) {
-    if (String(values[i][idColumnIndex]) === String(targetId)) {
-      sheet.getRange(i + 1, 1, 1, cleanRow.length).setValues([cleanRow]);
+    const rowIdStr = String(values[i][idColumnIndex] || '').trim().toUpperCase();
+    if (rowIdStr === targetIdStr) {
+      const targetRow = i + 1;
+      if (sheetName === SHEETS.PACIENTES) {
+        sheet.getRange(targetRow, 2).setNumberFormat('@');
+        sheet.getRange(targetRow, 6).setNumberFormat('@');
+      }
+      sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
       return;
     }
   }
   // Si no se encuentra, append
-  sheet.appendRow(cleanRow);
+  appendRow(sheetName, newRowArray);
+}
+
+function updateOrAppendPaciente(p) {
+  const sheet = getOrCreateSheet(SHEETS.PACIENTES);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanRow = sanitizeRow([
+    p.id, p.cedula, p.nombre, p.genero, p.correo, p.telefono,
+    p.contactada, p.fecha, p.promocion, p.procedimiento, p.direccion
+  ]);
+  const targetId = String(p.id || '').trim().toUpperCase();
+  const targetCedula = String(p.cedula || '').trim().toUpperCase();
+
+  for (let i = 1; i < values.length; i++) {
+    const rowId = String(values[i][0] || '').trim().toUpperCase();
+    const rowCedula = String(values[i][1] || '').trim().toUpperCase();
+    if ((targetId && rowId === targetId) || (targetCedula && targetCedula !== 'V-00000000' && rowCedula === targetCedula)) {
+      const targetRow = i + 1;
+      sheet.getRange(targetRow, 2).setNumberFormat('@');
+      sheet.getRange(targetRow, 6).setNumberFormat('@');
+      sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
+      return;
+    }
+  }
+  appendRow(SHEETS.PACIENTES, cleanRow);
+}
+
+function updateOrAppendPago(pago) {
+  const sheet = getOrCreateSheet(SHEETS.PAGOS);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanRow = sanitizeRow([
+    pago.fecha, pago.cod, pago.id, pago.nombre, pago.descripcion, pago.metodoDePago,
+    pago.referencia, pago.cargo, pago.abono, pago.diasVcto, pago.estatus,
+    pago.mesProximaAccion, pago.fechaProximaAccion, pago.proximaAccion
+  ]);
+  const targetCod = String(pago.cod || '').trim().toUpperCase();
+
+  for (let i = 1; i < values.length; i++) {
+    const rowCod = String(values[i][1] || '').trim().toUpperCase();
+    if (targetCod && rowCod === targetCod) {
+      const targetRow = i + 1;
+      sheet.getRange(targetRow, 1, 1, cleanRow.length).setValues([cleanRow]);
+      return;
+    }
+  }
+  appendRow(SHEETS.PAGOS, cleanRow);
 }
 
 function updateOrAppendRow(sheetName, idColumnIndex, targetId, newRowArray) {
   updateRowById(sheetName, idColumnIndex, targetId, newRowArray);
+}
+
+function updateOrAppendUser(sheetName, u) {
+  const sheet = getOrCreateSheet(sheetName);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanRow = sanitizeRow([
+    u.usuarioId, u.nombre, u.email, u.passwordHash, u.rol, u.estatus, u.fechaCreacion, u.fotoUrl || ''
+  ]);
+  const targetId = String(u.usuarioId || '').trim().toLowerCase();
+  const targetEmail = String(u.email || '').trim().toLowerCase();
+
+  for (let i = 1; i < values.length; i++) {
+    const rowId = String(values[i][0] || '').trim().toLowerCase();
+    const rowEmail = String(values[i][2] || '').trim().toLowerCase();
+    if ((targetId && rowId === targetId) || (targetEmail && rowEmail === targetEmail)) {
+      sheet.getRange(i + 1, 1, 1, cleanRow.length).setValues([cleanRow]);
+      return;
+    }
+  }
+  sheet.appendRow(cleanRow);
 }
 
 function replaceSheetData(sheetName, rowsData) {
@@ -343,4 +530,34 @@ function replaceSheetData(sheetName, rowsData) {
     const cleanRows = rowsData.map(function(r) { return sanitizeRow(r); });
     sheet.getRange(2, 1, cleanRows.length, cleanRows[0].length).setValues(cleanRows);
   }
+}
+
+function deleteRowsByMatchingValues(sheetName, colIndices, targetValues) {
+  const sheet = getOrCreateSheet(sheetName);
+  if (!sheet) return;
+  const values = sheet.getDataRange().getValues();
+  const cleanTargets = targetValues
+    .filter(function(t) { return t && String(t).trim().length > 0; })
+    .map(function(t) { return String(t).trim().toLowerCase(); });
+  
+  if (cleanTargets.length === 0) return;
+
+  for (let i = values.length - 1; i >= 1; i--) {
+    let match = false;
+    for (let c = 0; c < colIndices.length; c++) {
+      const colIdx = colIndices[c];
+      const cellVal = String(values[i][colIdx] || '').trim().toLowerCase();
+      if (cellVal && cleanTargets.indexOf(cellVal) !== -1) {
+        match = true;
+        break;
+      }
+    }
+    if (match) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+}
+
+function deleteRowsByColumnValue(sheetName, colIndex, targetVal) {
+  deleteRowsByMatchingValues(sheetName, [colIndex], [targetVal]);
 }

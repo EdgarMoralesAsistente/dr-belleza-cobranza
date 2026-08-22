@@ -11,21 +11,24 @@ import {
   CheckCircle2,
   Printer
 } from 'lucide-react';
-import { Pago } from '../types';
+import { Pago, RolUsuario, getRolePermissions } from '../types';
 
 interface PaymentsViewProps {
   pagos: Pago[];
+  userRole?: RolUsuario;
   onNewPayment: () => void;
   onPrintReceipt: (pago: Pago) => void;
 }
 
 export const PaymentsView: React.FC<PaymentsViewProps> = ({
   pagos,
+  userRole,
   onNewPayment,
   onPrintReceipt
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<string>('Todos');
+  const permissions = getRolePermissions(userRole);
 
   const filteredPagos = pagos.filter(p => {
     if (!p) return false;
@@ -61,13 +64,15 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             <strong className="text-sm font-bold text-emerald-800">${totalAbonadoGlobal.toLocaleString()} USD</strong>
           </div>
 
-          <button
-            onClick={onNewPayment}
-            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ Registrar Pago</span>
-          </button>
+          {permissions.canRegisterPayment && (
+            <button
+              onClick={onNewPayment}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>+ Registrar Pago</span>
+            </button>
+          )}
         </div>
       </div>
 

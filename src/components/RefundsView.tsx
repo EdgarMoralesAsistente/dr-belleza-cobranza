@@ -19,7 +19,7 @@ import {
   Check,
   Printer
 } from 'lucide-react';
-import { Paciente, Reintegro, EstadoReintegro, RolUsuario, Pago } from '../types';
+import { Paciente, Reintegro, EstadoReintegro, RolUsuario, Pago, getRolePermissions } from '../types';
 import { StorageService } from '../services/storageService';
 import { RefundReceiptModal } from './RefundReceiptModal';
 
@@ -38,6 +38,7 @@ export const RefundsView: React.FC<RefundsViewProps> = ({
   onRefresh,
   onSelectPatient
 }) => {
+  const permissions = getRolePermissions(userRole);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Todos');
 
@@ -380,7 +381,7 @@ export const RefundsView: React.FC<RefundsViewProps> = ({
                       </td>
 
                       <td className="p-4 text-right">
-                        {r.saldoPendiente > 0 && (userRole === 'Administrador' || userRole === 'Financiero') ? (
+                        {r.saldoPendiente > 0 && permissions.canProcessRefund ? (
                           <button
                             onClick={() => handleOpenPaymentModal(r)}
                             className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition-colors shadow-xs flex items-center gap-1.5 ml-auto cursor-pointer"

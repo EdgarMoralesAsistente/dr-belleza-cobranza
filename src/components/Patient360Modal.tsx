@@ -21,7 +21,7 @@ import {
   Check,
   RotateCcw
 } from 'lucide-react';
-import { Paciente, Pago, ActividadCRM, FinanciamientoCirugia, Reintegro } from '../types';
+import { Paciente, Pago, ActividadCRM, FinanciamientoCirugia, Reintegro, getRolePermissions, RolUsuario } from '../types';
 import { printPatientFinancingPDF } from '../services/financingConfig';
 import { StorageService } from '../services/storageService';
 import { CountryPhoneInput } from './common/CountryPhoneInput';
@@ -34,7 +34,7 @@ interface Patient360ModalProps {
   actividades: ActividadCRM[];
   financiamientos: FinanciamientoCirugia[];
   reintegros?: Reintegro[];
-  userRole?: string;
+  userRole?: RolUsuario;
   onClose: () => void;
   onOpenNewPaymentForPatient: (paciente: Paciente) => void;
   onOpenNewActivityForPatient: (paciente: Paciente) => void;
@@ -95,7 +95,7 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
     if (onRefreshData) onRefreshData();
   };
 
-  const isAdmin = userRole === 'Administrador';
+  const permissions = getRolePermissions(userRole);
 
   if (!paciente) return null;
 
@@ -201,47 +201,53 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                 <span>PDF / Imprimir Ficha</span>
               </button>
 
-              <button
-                onClick={() => onOpenNewPaymentForPatient(paciente)}
-                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center space-x-1.5 transition-all cursor-pointer"
-              >
-                <DollarSign className="w-4 h-4" />
-                <span>Registrar Abono</span>
-              </button>
-
-              <button
-                onClick={() => onOpenNewActivityForPatient(paciente)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg border border-slate-700 flex items-center space-x-1.5 transition-all cursor-pointer"
-              >
-                <Clock className="w-4 h-4" />
-                <span>Agendar CRM</span>
-              </button>
-
-              {patientReintegro ? (
+              {permissions.canRegisterPayment && (
                 <button
-                  onClick={() => setActiveTab('reintegro')}
-                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs rounded-lg border border-amber-500/40 flex items-center space-x-1.5 transition-all cursor-pointer"
-                  title="Ver Pestaña de Reintegro de la paciente"
+                  onClick={() => onOpenNewPaymentForPatient(paciente)}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center space-x-1.5 transition-all cursor-pointer"
                 >
-                  <RotateCcw className="w-4 h-4 text-amber-300" />
-                  <span>Reintegro Solicitado</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowRefundModal(true)}
-                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs rounded-lg border border-amber-500/40 flex items-center space-x-1.5 transition-all cursor-pointer"
-                  title="Activar o solicitar reintegro del dinero abonado"
-                >
-                  <RotateCcw className="w-4 h-4 text-amber-300" />
-                  <span>Solicitar Reintegro</span>
+                  <DollarSign className="w-4 h-4" />
+                  <span>Registrar Abono</span>
                 </button>
               )}
 
-              {isAdmin && onDeletePatient && (
+              {permissions.canManageCrm && (
+                <button
+                  onClick={() => onOpenNewActivityForPatient(paciente)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg border border-slate-700 flex items-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Agendar CRM</span>
+                </button>
+              )}
+
+              {permissions.canProcessRefund && (
+                patientReintegro ? (
+                  <button
+                    onClick={() => setActiveTab('reintegro')}
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs rounded-lg border border-amber-500/40 flex items-center space-x-1.5 transition-all cursor-pointer"
+                    title="Ver Pestaña de Reintegro de la paciente"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-300" />
+                    <span>Reintegro Solicitado</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowRefundModal(true)}
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs rounded-lg border border-amber-500/40 flex items-center space-x-1.5 transition-all cursor-pointer"
+                    title="Activar o solicitar reintegro del dinero abonado"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-300" />
+                    <span>Solicitar Reintegro</span>
+                  </button>
+                )
+              )}
+
+              {permissions.canDeleteAnything && onDeletePatient && (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
                   className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-semibold text-xs rounded-lg border border-rose-500/40 flex items-center space-x-1.5 transition-all cursor-pointer shrink-0"
-                  title="Eliminar paciente y todos sus registros (Solo Administrador)"
+                  title="Eliminar paciente"
                 >
                   <Trash2 className="w-4 h-4 text-rose-400 group-hover:text-white" />
                   <span>Borrar Paciente</span>
@@ -337,39 +343,41 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
               <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Información de Contacto & Dirección</h3>
-                  {!isEditingContact ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingContact(true)}
-                      className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center space-x-1 hover:bg-teal-50 px-2 py-1 rounded-md transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>Editar Contacto</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-2">
+                  {permissions.canEditPatient && (
+                    !isEditingContact ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsEditingContact(false);
-                          setEditedPhone(paciente.telefono || '');
-                          setEditedEmail(paciente.correo || '');
-                          setEditedAddress(paciente.direccion || '');
-                        }}
-                        className="text-xs font-medium text-slate-500 hover:text-slate-700 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                        onClick={() => setIsEditingContact(true)}
+                        className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center space-x-1 hover:bg-teal-50 px-2 py-1 rounded-md transition-colors"
                       >
-                        Cancelar
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Editar Contacto</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveContact}
-                        disabled={isSavingContact}
-                        className="text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 shadow-xs"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>{isSavingContact ? 'Guardando...' : 'Guardar'}</span>
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditingContact(false);
+                            setEditedPhone(paciente.telefono || '');
+                            setEditedEmail(paciente.correo || '');
+                            setEditedAddress(paciente.direccion || '');
+                          }}
+                          className="text-xs font-medium text-slate-500 hover:text-slate-700 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveContact}
+                          disabled={isSavingContact}
+                          className="text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-2.5 py-1 rounded-md transition-colors flex items-center space-x-1 shadow-xs"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{isSavingContact ? 'Guardando...' : 'Guardar'}</span>
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -512,12 +520,14 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
                     Crea un plan de financiamiento para definir el costo total de la cirugía, número de cuotas y fecha estimada de operación.
                   </p>
-                  <button
-                    onClick={() => onOpenNewFinancingPlanForPatient(paciente)}
-                    className="px-4 py-2 bg-teal-600 text-white font-semibold text-xs rounded-lg shadow-2xs hover:bg-teal-700 transition-all cursor-pointer"
-                  >
-                    Crear Plan de Financiamiento
-                  </button>
+                  {permissions.canCreateFinancingPlan && (
+                    <button
+                      onClick={() => onOpenNewFinancingPlanForPatient(paciente)}
+                      className="px-4 py-2 bg-teal-600 text-white font-semibold text-xs rounded-lg shadow-2xs hover:bg-teal-700 transition-all cursor-pointer"
+                    >
+                      Crear Plan de Financiamiento
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -590,13 +600,15 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                   <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Historial de Recibos y Abonos Recibidos ({patientAbonoPagos.length})</h4>
-                      <button
-                        onClick={() => onOpenNewPaymentForPatient(paciente)}
-                        className="px-3 py-1.5 bg-teal-600 text-white font-semibold text-xs rounded-lg shadow-2xs hover:bg-teal-700 transition-all cursor-pointer flex items-center space-x-1"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Registrar Nuevo Abono</span>
-                      </button>
+                      {permissions.canRegisterPayment && (
+                        <button
+                          onClick={() => onOpenNewPaymentForPatient(paciente)}
+                          className="px-3 py-1.5 bg-teal-600 text-white font-semibold text-xs rounded-lg shadow-2xs hover:bg-teal-700 transition-all cursor-pointer flex items-center space-x-1"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>Registrar Nuevo Abono</span>
+                        </button>
+                      )}
                     </div>
 
                     {patientAbonoPagos.length === 0 ? (
@@ -766,13 +778,15 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                         <RotateCcw className="w-4 h-4 text-amber-600" />
                         <span>Historial de Recibos de Reintegro ({patientReintegroEgresos.length})</span>
                       </h4>
-                      <button
-                        onClick={() => onOpenNewPaymentForPatient(paciente)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-all flex items-center space-x-1 cursor-pointer shadow-2xs"
-                      >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        <span>Registrar Nuevo Egreso</span>
-                      </button>
+                      {permissions.canProcessRefund && (
+                        <button
+                          onClick={() => onOpenNewPaymentForPatient(paciente)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-all flex items-center space-x-1 cursor-pointer shadow-2xs"
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>Registrar Nuevo Egreso</span>
+                        </button>
+                      )}
                     </div>
 
                     {patientReintegroEgresos.length === 0 ? (

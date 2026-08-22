@@ -44,12 +44,14 @@ export const INITIAL_PROCEDURES_CATALOG: ProcedureCatalogItem[] = [
   { id: 'proc_2', nombre: 'Lipoescultura HD 360°', categoria: 'Contorno Corporal', precioDefault: 3200, activo: true },
   { id: 'proc_3', nombre: 'Abdominoplastia / Dermolipectomía', categoria: 'Contorno Corporal', precioDefault: 3800, activo: true },
   { id: 'proc_4', nombre: 'Mastopexia con Prótesis', categoria: 'Mamas', precioDefault: 3400, activo: true },
-  { id: 'proc_5', nombre: 'Rinoplastia Ultrasónica Estructurada', categoria: 'Facial', precioDefault: 2800, activo: true },
-  { id: 'proc_6', nombre: 'Bichectomía & Lipopada Ultrasónica', categoria: 'Facial', precioDefault: 1200, activo: true },
-  { id: 'proc_7', nombre: 'Marcaje Abdominal (High Def)', categoria: 'Contorno Corporal', precioDefault: 1500, activo: true },
-  { id: 'proc_8', nombre: 'Transferencia Glútea (BBL)', categoria: 'Contorno Corporal', precioDefault: 1800, activo: true },
-  { id: 'proc_9', nombre: 'Blefaroplastia Superior e Inferior', categoria: 'Facial', precioDefault: 1400, activo: true },
-  { id: 'proc_10', nombre: 'Otoplastia Bilateral', categoria: 'Facial', precioDefault: 1100, activo: true }
+  { id: 'proc_5', nombre: 'Lipoescultura HD 360° + Mamoplastia', categoria: 'Corporal + Mamas', precioDefault: 4800, activo: true },
+  { id: 'proc_6', nombre: 'Abdominoplastia + Mastopexia', categoria: 'Corporal + Mamas', precioDefault: 5200, activo: true },
+  { id: 'proc_7', nombre: 'Rinoplastia Ultrasónica Estructurada', categoria: 'Facial', precioDefault: 2800, activo: true },
+  { id: 'proc_8', nombre: 'Bichectomía & Lipopada Ultrasónica', categoria: 'Facial', precioDefault: 1200, activo: true },
+  { id: 'proc_9', nombre: 'Marcaje Abdominal (High Def)', categoria: 'Contorno Corporal', precioDefault: 1500, activo: true },
+  { id: 'proc_10', nombre: 'Transferencia Glútea (BBL)', categoria: 'Contorno Corporal', precioDefault: 1800, activo: true },
+  { id: 'proc_11', nombre: 'Blefaroplastia Superior e Inferior', categoria: 'Facial', precioDefault: 1400, activo: true },
+  { id: 'proc_12', nombre: 'Otoplastia Bilateral', categoria: 'Facial', precioDefault: 1100, activo: true }
 ];
 
 // Cupones de Descuento Preconfigurados Iniciales

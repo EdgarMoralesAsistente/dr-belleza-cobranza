@@ -189,6 +189,15 @@ export default function App() {
     refreshData();
   };
 
+  const handleDeleteUser = (usuarioId: string) => {
+    const res = StorageService.deleteUsuario(usuarioId, currentUser);
+    if (!res.success) {
+      alert(res.message);
+      return;
+    }
+    refreshData();
+  };
+
   const handleUpdatePatient = (p: Paciente) => {
     StorageService.updatePaciente(p);
     refreshData();
@@ -304,6 +313,7 @@ export default function App() {
               <FinancingView
                 financiamientos={financiamientos}
                 pacientes={pacientes}
+                userRole={currentUser.rol}
                 onNewFinancingPlan={() => {
                   setPreselectedPatientForFinancing(null);
                   setShowNewFinancingModal(true);
@@ -329,6 +339,7 @@ export default function App() {
             {activeTab === 'pagos' && (
               <PaymentsView
                 pagos={pagos}
+                userRole={currentUser.rol}
                 onNewPayment={() => {
                   setPreselectedPatientForPayment(null);
                   setShowNewPaymentModal(true);
@@ -343,6 +354,7 @@ export default function App() {
                 currentUser={currentUser}
                 onNewUser={() => setShowNewUserModal(true)}
                 onUpdateUser={handleUpdateUser}
+                onDeleteUser={handleDeleteUser}
               />
             )}
 

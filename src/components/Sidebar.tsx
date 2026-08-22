@@ -15,7 +15,7 @@ import {
   Settings,
   X
 } from 'lucide-react';
-import { RolUsuario } from '../types';
+import { RolUsuario, getRolePermissions } from '../types';
 
 export type TabType =
   | 'dashboard'
@@ -51,19 +51,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobileMenu
 }) => {
+  const permissions = getRolePermissions(userRole);
+
   // Permisos según el Rol (RBAC)
   const isAllowed = (tab: TabType): boolean => {
-    if (userRole === 'Administrador') return true;
-    if (tab === 'configuracion') return userRole === 'Administrador';
-    if (tab === 'google-sheets') return userRole === 'Administrador';
-    if (tab === 'usuarios') return userRole === 'Administrador';
-    if (tab === 'financiamiento') return userRole === 'Administrador' || userRole === 'Financiero';
-    if (tab === 'reintegros') return userRole === 'Administrador' || userRole === 'Financiero';
-    if (tab === 'pagos') return userRole === 'Administrador' || userRole === 'Financiero';
-    if (tab === 'crm') return userRole === 'Administrador' || userRole === 'Asistente' || userRole === 'Médico';
-    if (tab === 'pacientes') return true;
-    if (tab === 'dashboard') return true;
-    return true;
+    switch (tab) {
+      case 'dashboard':
+        return permissions.canAccessDashboard;
+      case 'pacientes':
+        return permissions.canAccessPatients;
+      case 'crm':
+        return permissions.canAccessCrm;
+      case 'financiamiento':
+        return permissions.canAccessFinancing;
+      case 'reintegros':
+        return permissions.canAccessRefunds;
+      case 'pagos':
+        return permissions.canAccessPayments;
+      case 'usuarios':
+        return permissions.canAccessUsers;
+      case 'configuracion':
+        return permissions.canAccessSettings;
+      case 'google-sheets':
+        return permissions.canAccessGas;
+      default:
+        return false;
+    }
   };
 
   const navItems = [
@@ -105,49 +118,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* BOTONES RÁPIDOS DE ACCIÓN */}
+      {/* BOTONES RÁPIDOS DE ACCIÓN SEGÚN PERMISOS */}
       <div className="p-4 space-y-2 border-b border-slate-100">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onNewPatient();
-            if (onCloseMobileMenu) onCloseMobileMenu();
-          }}
-          className="w-full bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-xs py-2.5 px-3 rounded-lg shadow-xs flex items-center justify-center space-x-2 transition-all cursor-pointer relative z-10"
-        >
-          <PlusCircle className="w-4 h-4 shrink-0" />
-          <span>+ Nuevo Paciente</span>
-        </button>
-
-        <div className="grid grid-cols-2 gap-2">
+        {permissions.canAddPatient && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onNewPayment();
+              onNewPatient();
               if (onCloseMobileMenu) onCloseMobileMenu();
             }}
-            className="bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-200 font-medium text-[11px] py-2 px-2 rounded-lg flex items-center justify-center space-x-1.5 transition-all cursor-pointer relative z-10"
-            title="Registrar Abono o Cargo"
+            className="w-full bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-semibold text-xs py-2.5 px-3 rounded-lg shadow-xs flex items-center justify-center space-x-2 transition-all cursor-pointer relative z-10"
           >
-            <CreditCard className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-            <span>Cobro</span>
+            <PlusCircle className="w-4 h-4 shrink-0" />
+            <span>+ Nuevo Paciente</span>
           </button>
+        )}
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onNewActivity();
-              if (onCloseMobileMenu) onCloseMobileMenu();
-            }}
-            className="bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-200 font-medium text-[11px] py-2 px-2 rounded-lg flex items-center justify-center space-x-1.5 transition-all cursor-pointer relative z-10"
-            title="Agendar Alarma o Cita"
-          >
-            <CalendarCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span>Alarma</span>
-          </button>
+        <div className={`grid ${permissions.canRegisterPayment ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+          {permissions.canRegisterPayment && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewPayment();
+                if (onCloseMobileMenu) onCloseMobileMenu();
+              }}
+              className="bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-200 font-medium text-[11px] py-2 px-2 rounded-lg flex items-center justify-center space-x-1.5 transition-all cursor-pointer relative z-10"
+              title="Registrar Abono o Cargo"
+            >
+              <CreditCard className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+              <span>Cobro</span>
+            </button>
+          )}
+
+          {permissions.canManageCrm && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewActivity();
+                if (onCloseMobileMenu) onCloseMobileMenu();
+              }}
+              className="bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-200 font-medium text-[11px] py-2 px-2 rounded-lg flex items-center justify-center space-x-1.5 transition-all cursor-pointer relative z-10"
+              title="Agendar Alarma o Cita"
+            >
+              <CalendarCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>Alarma CRM</span>
+            </button>
+          )}
         </div>
       </div>
 
