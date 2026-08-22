@@ -269,6 +269,7 @@ export default function App() {
                 actividades={actividades}
                 financiamientos={financiamientos}
                 reintegros={reintegros}
+                userRole={currentUser.rol}
                 onSelectPatient={handleOpen360ByPatientId}
                 onNavigateToTab={setActiveTab}
               />
@@ -359,7 +360,11 @@ export default function App() {
             )}
 
             {activeTab === 'google-sheets' && (
-              <GasView onDataSyncSuccess={refreshData} />
+              <GasView
+                currentUser={currentUser}
+                userRole={currentUser.rol}
+                onDataSyncSuccess={refreshData}
+              />
             )}
 
             {activeTab === 'configuracion' && (

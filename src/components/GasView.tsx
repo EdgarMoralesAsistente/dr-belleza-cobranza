@@ -12,23 +12,48 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
-  Trash2
+  Trash2,
+  ShieldAlert
 } from 'lucide-react';
 import { CODE_GS_SCRIPT } from '../gas/codeGs';
 import { StorageService } from '../services/storageService';
 import { GasService } from '../services/gasService';
+import { Usuario, RolUsuario, getRolePermissions } from '../types';
 
 interface GasViewProps {
+  currentUser?: Usuario;
+  userRole?: RolUsuario;
   onDataSyncSuccess: () => void;
 }
 
-export const GasView: React.FC<GasViewProps> = ({ onDataSyncSuccess }) => {
+export const GasView: React.FC<GasViewProps> = ({ currentUser, userRole, onDataSyncSuccess }) => {
+  const currentRole = userRole || currentUser?.rol;
+  const permissions = getRolePermissions(currentRole);
+
   const [gasUrl, setGasUrl] = useState(StorageService.getGasUrl());
   const [copied, setCopied] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  if (!permissions.canAccessGas) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 text-center space-y-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Acceso Restringido - Google Sheets (Code.gs)</h2>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          El módulo de integración técnica y configuración con <strong>Google Sheets / Apps Script</strong> está restringido y no está disponible para tu perfil de usuario.
+        </p>
+        <div className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full text-xs font-semibold">
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+          <span>Tu perfil actual es: <strong>{currentRole || 'Médico'}</strong></span>
+        </div>
+      </div>
+    );
+  }
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(CODE_GS_SCRIPT);

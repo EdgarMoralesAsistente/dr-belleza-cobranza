@@ -39,7 +39,9 @@ import {
   Pago,
   ActividadCRM,
   FinanciamientoCirugia,
-  Reintegro
+  Reintegro,
+  RolUsuario,
+  getRolePermissions
 } from '../types';
 
 interface DashboardViewProps {
@@ -48,6 +50,7 @@ interface DashboardViewProps {
   actividades: ActividadCRM[];
   financiamientos: FinanciamientoCirugia[];
   reintegros?: Reintegro[];
+  userRole?: RolUsuario;
   onSelectPatient: (pacienteId: string) => void;
   onNavigateToTab: (tab: any) => void;
 }
@@ -58,9 +61,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   actividades = [],
   financiamientos = [],
   reintegros = [],
+  userRole,
   onSelectPatient,
   onNavigateToTab
 }) => {
+  const permissions = getRolePermissions(userRole);
   // -------------------------------------------------------------
   // CÁLCULO DE KPIS - COLUMNA 1: INGRESOS & FINANCIAMIENTOS
   // -------------------------------------------------------------
@@ -211,15 +216,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => onNavigateToTab('google-sheets')}
-            className="flex items-center space-x-2 bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-xl shadow-2xs transition-colors cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Sincronización Sheets Activa</span>
-          </button>
-        </div>
+        {permissions.canAccessGas && (
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => onNavigateToTab('google-sheets')}
+              className="flex items-center space-x-2 bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-xl shadow-2xs transition-colors cursor-pointer"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Sincronización Sheets Activa</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ALERTAS CRÍTICAS DE MORA O REINTEGROS PENDIENTES */}

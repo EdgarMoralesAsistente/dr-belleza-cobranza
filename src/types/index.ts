@@ -82,7 +82,7 @@ export function getRolePermissions(role?: string): UserPermissions {
       canAccessPayments: false,
       canAccessUsers: false,
       canAccessSettings: false,
-      canAccessGas: true
+      canAccessGas: false
     };
   }
 

@@ -16,7 +16,7 @@ import {
   FileText,
   LogOut
 } from 'lucide-react';
-import { Usuario, ActividadCRM, RolUsuario } from '../types';
+import { Usuario, ActividadCRM, RolUsuario, getRolePermissions } from '../types';
 import { StorageService } from '../services/storageService';
 
 interface HeaderProps {
@@ -58,6 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
     a => a.alarma && a.estado === 'Pendiente' && a.fechaProgramada <= todayStr
   );
 
+  const permissions = getRolePermissions(currentUser?.rol);
   const gasUrl = StorageService.getGasUrl();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -141,21 +142,23 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* GOOGLE SHEETS SYNC STATUS PILL */}
-            <button
-              onClick={onOpenGasConfig}
-              className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
-                gasUrl
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-              }`}
-              title="Configuración e Integración con Google Sheets"
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
-                {gasUrl ? 'Google Sheets Conectado' : 'Conectar Sheets'}
-              </span>
-              <span className={`w-2 h-2 rounded-full ${gasUrl ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            </button>
+            {permissions.canAccessGas && (
+              <button
+                onClick={onOpenGasConfig}
+                className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+                  gasUrl
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                }`}
+                title="Configuración e Integración con Google Sheets"
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {gasUrl ? 'Google Sheets Conectado' : 'Conectar Sheets'}
+                </span>
+                <span className={`w-2 h-2 rounded-full ${gasUrl ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              </button>
+            )}
 
             {/* NOTIFICACIONES Y ALARMAS CRM */}
             <div className="relative">
