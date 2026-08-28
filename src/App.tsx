@@ -370,7 +370,10 @@ export default function App() {
             )}
 
             {activeTab === 'configuracion' && (
-              <SettingsView />
+              <SettingsView
+                currentUser={currentUser}
+                userRole={currentUser.rol}
+              />
             )}
           </ErrorBoundary>
         </main>

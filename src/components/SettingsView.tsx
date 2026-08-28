@@ -21,9 +21,12 @@ import {
   Phone,
   Mail,
   MapPin,
-  Info
+  Info,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { StorageService } from '../services/storageService';
+import { Usuario, RolUsuario, getRolePermissions } from '../types';
 import {
   getActiveCatalog,
   getActiveCoupons,
@@ -35,8 +38,35 @@ import {
   ClinicConfig
 } from '../services/financingConfig';
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  currentUser?: Usuario;
+  userRole?: RolUsuario;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRole }) => {
+  const currentRole = userRole || currentUser?.rol;
+  const permissions = getRolePermissions(currentRole);
+
   const [activeTab, setActiveTab] = useState<'catalog' | 'coupons' | 'plans' | 'clinic' | 'sheets'>('catalog');
+
+  // --- ACCESO RESTRINGIDO ---
+  if (!permissions.canAccessSettings) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 text-center space-y-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Acceso Restringido - Configuración</h2>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          El módulo de <strong>Configuración del Sistema</strong> (catálogos de precios, cupones, parámetros de financiamiento e integraciones) está reservado exclusivamente para perfiles de administración autorizados.
+        </p>
+        <div className="inline-flex items-center space-x-1.5 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full text-xs font-semibold">
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+          <span>Tu perfil actual es: <strong>{currentRole || 'Financiero'}</strong></span>
+        </div>
+      </div>
+    );
+  }
 
   // --- ESTADOS DE CONFIGURACIÓN ---
   const [catalog, setCatalog] = useState<ProcedureCatalogItem[]>(() => getActiveCatalog());
