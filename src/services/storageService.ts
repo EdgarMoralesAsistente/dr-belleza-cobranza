@@ -40,10 +40,11 @@ const DEFAULT_USER_ROLES = ['Administrador', 'Asistente', 'Financiero', 'Médico
 
 export function normalizeUserRole(rawRole: any): RolUsuario {
   const str = String(rawRole || '').trim();
-  if (str === 'Administrador' || str.toLowerCase() === 'administrador') return 'Administrador';
-  if (str === 'Financiero' || str.toLowerCase() === 'financiero') return 'Financiero';
-  if (str === 'Médico' || str === 'Medico' || str.toLowerCase() === 'medico') return 'Médico';
-  if (str === 'Asistente' || str.toLowerCase() === 'asistente') return 'Asistente';
+  const lower = str.toLowerCase();
+  if (str === 'Administrador' || lower === 'administrador' || lower === 'admin') return 'Administrador';
+  if (str === 'Financiero' || lower === 'financiero' || lower === 'fianciero' || lower === 'finanzas') return 'Financiero';
+  if (str === 'Médico' || str === 'Medico' || lower === 'medico') return 'Médico';
+  if (str === 'Asistente' || lower === 'asistente') return 'Asistente';
   return str || 'Asistente';
 }
 

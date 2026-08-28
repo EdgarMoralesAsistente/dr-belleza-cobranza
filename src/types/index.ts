@@ -21,9 +21,10 @@ export interface UserPermissions {
 
 export function getRolePermissions(role?: string): UserPermissions {
   const normalized = (role || 'Asistente').trim();
+  const lower = normalized.toLowerCase();
 
   // Administrador: Acceso a todo sin restricciones de ningún tipo
-  if (normalized === 'Administrador' || normalized.toLowerCase() === 'administrador') {
+  if (normalized === 'Administrador' || lower === 'administrador' || lower === 'admin') {
     return {
       canAddPatient: true,
       canEditPatient: true,
@@ -44,7 +45,17 @@ export function getRolePermissions(role?: string): UserPermissions {
     };
   }
 
-  if (normalized === 'Financiero') {
+  // Financiero:
+  // - Pacientes: Ver, agregar nuevos pacientes y gestionar su información de contacto (sin eliminar nada)
+  // - Financiamiento & Quirúrgico: Ver/consultar y registrar abonos/pagos de cuotas (NO puede crear nuevos planes)
+  // - Reintegros & Egresos: Ver, gestionar y emitir comprobantes de desembolso por reintegro
+  // - Agenda & Alarmas CRM: Acceso completo para ver y editar (gestionar) notas, recordatorios y alarmas
+  if (
+    normalized === 'Financiero' ||
+    lower === 'financiero' ||
+    lower === 'fianciero' ||
+    lower === 'finanzas'
+  ) {
     return {
       canAddPatient: true,
       canEditPatient: true,
@@ -59,9 +70,9 @@ export function getRolePermissions(role?: string): UserPermissions {
       canAccessFinancing: true,
       canAccessRefunds: true,
       canAccessPayments: true,
-      canAccessUsers: true,
-      canAccessSettings: true,
-      canAccessGas: true
+      canAccessUsers: false,
+      canAccessSettings: false,
+      canAccessGas: false
     };
   }
 

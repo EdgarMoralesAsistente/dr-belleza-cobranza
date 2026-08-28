@@ -23,7 +23,7 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { LoginView } from './components/LoginView';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
-import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia, Reintegro } from './types';
+import { Paciente, Pago, Usuario, ActividadCRM, FinanciamientoCirugia, Reintegro, getRolePermissions } from './types';
 import { StorageService } from './services/storageService';
 
 export default function App() {
@@ -221,6 +221,8 @@ export default function App() {
   if (!currentUser) {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
+
+  const permissions = getRolePermissions(currentUser.rol);
 
   return (
     <div className="h-screen min-h-[100dvh] bg-slate-100 flex flex-col font-sans text-slate-800 antialiased selection:bg-teal-500 selection:text-white overflow-hidden">
@@ -421,7 +423,7 @@ export default function App() {
       )}
 
       {/* MODAL NUEVO PACIENTE */}
-      {showNewPatientModal && (
+      {showNewPatientModal && permissions.canAddPatient && (
         <NewPatientModal
           onClose={() => setShowNewPatientModal(false)}
           onSave={handleSavePatient}
@@ -429,7 +431,7 @@ export default function App() {
       )}
 
       {/* MODAL NUEVO PAGO */}
-      {showNewPaymentModal && (
+      {showNewPaymentModal && permissions.canRegisterPayment && (
         <NewPaymentModal
           pacientes={pacientes}
           financiamientos={financiamientos}
@@ -443,7 +445,7 @@ export default function App() {
       )}
 
       {/* MODAL NUEVA ACTIVIDAD CRM */}
-      {showNewActivityModal && (
+      {showNewActivityModal && permissions.canManageCrm && (
         <NewActivityModal
           pacientes={pacientes}
           currentUser={currentUser}
@@ -457,7 +459,7 @@ export default function App() {
       )}
 
       {/* MODAL NUEVO PLAN DE FINANCIAMIENTO */}
-      {showNewFinancingModal && (
+      {showNewFinancingModal && permissions.canCreateFinancingPlan && (
         <NewFinancingPlanModal
           pacientes={pacientes}
           preselectedPatient={preselectedPatientForFinancing}
@@ -470,7 +472,7 @@ export default function App() {
       )}
 
       {/* MODAL NUEVO USUARIO */}
-      {showNewUserModal && (
+      {showNewUserModal && permissions.canAccessUsers && (
         <NewUserModal
           onClose={() => setShowNewUserModal(false)}
           onSave={handleSaveUser}
