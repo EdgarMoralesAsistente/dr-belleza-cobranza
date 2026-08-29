@@ -20,7 +20,7 @@ import {
   Sparkles,
   Search
 } from 'lucide-react';
-import { ActividadCRM, Paciente, FinanciamientoCirugia, Pago } from '../types';
+import { ActividadCRM, Paciente, FinanciamientoCirugia, Pago, RolUsuario, getRolePermissions } from '../types';
 import { CrmKanbanView } from './crm/CrmKanbanView';
 import { CrmCalendarView } from './crm/CrmCalendarView';
 
@@ -29,6 +29,7 @@ interface CrmViewProps {
   pacientes: Paciente[];
   financiamientos?: FinanciamientoCirugia[];
   pagos?: Pago[];
+  userRole?: RolUsuario;
   onNewActivity: () => void;
   onUpdateActivity: (actividad: ActividadCRM) => void;
   onUpdatePatient: (paciente: Paciente) => void;
@@ -43,6 +44,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
   pacientes,
   financiamientos = [],
   pagos = [],
+  userRole,
   onNewActivity,
   onUpdateActivity,
   onUpdatePatient,
@@ -51,6 +53,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
   onNewActivityForPatient,
   onNewPaymentForPatient
 }) => {
+  const permissions = getRolePermissions(userRole);
   const [activeSubTab, setActiveSubTab] = useState<'alarmas' | 'kanban' | 'calendario'>('alarmas');
   const [filterType, setFilterType] = useState<string>('Todos');
   const [filterStatus, setFilterStatus] = useState<string>('Pendientes');

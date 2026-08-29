@@ -29,7 +29,8 @@ const SHEETS = {
   USUARIOS: 'Usuarios',
   ACTIVIDADES: 'Actividades_CRM',
   FINANCIAMIENTO: 'Financiamiento_Cirugias',
-  REINTEGROS: 'Reintegros_Financiamiento'
+  REINTEGROS: 'Reintegros_Financiamiento',
+  CATALOGO: 'Catalogo_Procedimientos'
 };
 
 /**
@@ -103,7 +104,16 @@ function setupSpreadsheet() {
     "Saldo_Pendiente", "Estado_Reintegro", "Fecha_Estimada_Culminacion"
   ]]).setFontWeight("bold").setBackground("#cbd5e1");
 
-  return "Estructura de 6 pestañas verificada y creada exitosamente.";
+  // 7. Pestaña Catalogo_Procedimientos
+  let sheetCat = ss.getSheetByName(SHEETS.CATALOGO);
+  if (!sheetCat) {
+    sheetCat = ss.insertSheet(SHEETS.CATALOGO);
+  }
+  sheetCat.getRange("A1:E1").setValues([[
+    "ID", "Nombre", "Categoria", "Precio_Default", "Activo"
+  ]]).setFontWeight("bold").setBackground("#e2e8f0");
+
+  return "Estructura de 7 pestañas verificada y creada exitosamente.";
 }
 
 /**
@@ -141,6 +151,10 @@ function doGet(e) {
       return responseJSON({ success: true, data: getSheetData(SHEETS.REINTEGROS) });
     }
 
+    if (action === 'getCatalogo') {
+      return responseJSON({ success: true, data: getSheetData(SHEETS.CATALOGO) });
+    }
+
     if (action === 'getAllData') {
       return responseJSON({
         success: true,
@@ -149,7 +163,8 @@ function doGet(e) {
         usuarios: getSheetData(SHEETS.USUARIOS),
         actividades: getSheetData(SHEETS.ACTIVIDADES),
         financiamientos: getSheetData(SHEETS.FINANCIAMIENTO),
-        reintegros: getSheetData(SHEETS.REINTEGROS)
+        reintegros: getSheetData(SHEETS.REINTEGROS),
+        catalogo: getSheetData(SHEETS.CATALOGO)
       });
     }
 
@@ -345,7 +360,23 @@ function doPost(e) {
         ]));
       }
 
+      if (contents.catalogo && Array.isArray(contents.catalogo)) {
+        replaceSheetData(SHEETS.CATALOGO, contents.catalogo.map(p => [
+          p.id || '', p.nombre || '', p.categoria || 'General', p.precioDefault || 0, p.activo !== false ? 'Sí' : 'No'
+        ]));
+      }
+
       return responseJSON({ success: true, message: 'Sincronización completa con Google Sheets realizada.' });
+    }
+
+    if (action === 'syncCatalog' || action === 'saveCatalog') {
+      const catalogo = contents.catalogo;
+      if (catalogo && Array.isArray(catalogo)) {
+        replaceSheetData(SHEETS.CATALOGO, catalogo.map(p => [
+          p.id || '', p.nombre || '', p.categoria || 'General', p.precioDefault || 0, p.activo !== false ? 'Sí' : 'No'
+        ]));
+      }
+      return responseJSON({ success: true, message: 'Catálogo de procedimientos quirúrgicos sincronizado en Google Sheets.' });
     }
 
     return responseJSON({ error: 'Acción POST no reconocida: ' + action });

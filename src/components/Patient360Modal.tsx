@@ -27,6 +27,8 @@ import { StorageService } from '../services/storageService';
 import { CountryPhoneInput } from './common/CountryPhoneInput';
 import { RefundModal } from './RefundModal';
 import { RefundReceiptModal } from './RefundReceiptModal';
+import { AddAdditionalSurgeryModal } from './AddAdditionalSurgeryModal';
+import { Scissors } from 'lucide-react';
 
 interface Patient360ModalProps {
   paciente: Paciente | null;
@@ -62,6 +64,7 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
   const [activeTab, setActiveTab] = useState<'datos' | 'crm' | 'financiamiento' | 'reintegro'>('datos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
+  const [showAddSurgeryModal, setShowAddSurgeryModal] = useState(false);
   const [selectedRefundForReceipt, setSelectedRefundForReceipt] = useState<Pago | null>(null);
 
   // Estado para edición directa de información de contacto
@@ -200,6 +203,17 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                 <Printer className="w-4 h-4 text-teal-300" />
                 <span>PDF / Imprimir Ficha</span>
               </button>
+
+              {(permissions.canCreateFinancingPlan || permissions.canEditPatient || permissions.canAddPatient) && (
+                <button
+                  onClick={() => setShowAddSurgeryModal(true)}
+                  className="px-3 py-1.5 bg-teal-500/20 hover:bg-teal-500/40 text-teal-300 hover:text-white font-semibold text-xs rounded-lg border border-teal-500/40 flex items-center space-x-1.5 transition-all cursor-pointer"
+                  title="Agregar cirugía adicional del catálogo y recalcular plan"
+                >
+                  <Scissors className="w-4 h-4 text-teal-300" />
+                  <span>+ Cirugía Adicional</span>
+                </button>
+              )}
 
               {permissions.canRegisterPayment && (
                 <button
@@ -539,6 +553,15 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                         <h3 className="text-base font-bold text-slate-900">{patientFin.procedimiento}</h3>
                       </div>
                       <div className="flex items-center gap-2">
+                        {(permissions.canCreateFinancingPlan || permissions.canEditPatient || permissions.canAddPatient) && (
+                          <button
+                            onClick={() => setShowAddSurgeryModal(true)}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
+                          >
+                            <Scissors className="w-3.5 h-3.5" />
+                            <span>+ Agregar Cirugía Adicional</span>
+                          </button>
+                        )}
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                           patientFin.estadoFinanciero === 'Pagado Totalmente' ? 'bg-emerald-50 text-emerald-700' :
                           patientFin.estadoFinanciero === 'En Mora' ? 'bg-rose-50 text-rose-700' :
@@ -547,6 +570,36 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
                         }`}>
                           {patientFin.estadoFinanciero}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* DESGLOSE DEL COMBO QUIRÚRGICO CONTRATADO */}
+                    <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center space-x-1.5">
+                          <Scissors className="w-3.5 h-3.5 text-teal-600" />
+                          <span>Procedimientos Incluidos en el Combo ({patientFin.comboProcedimientos?.length || 1})</span>
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Subtotal: <strong>${(patientFin.costoSubtotal || patientFin.costoTotalCirugia || 0).toLocaleString()} USD</strong>
+                          {patientFin.descuentoMonto && patientFin.descuentoMonto > 0 ? ` (Desc: -$${patientFin.descuentoMonto} USD)` : ''}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {patientFin.comboProcedimientos && patientFin.comboProcedimientos.length > 0 ? (
+                          patientFin.comboProcedimientos.map((item, idx) => (
+                            <div key={item.id || idx} className="bg-white p-2.5 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-slate-800 truncate" title={item.nombre}>{item.nombre}</span>
+                              <span className="font-bold text-slate-900 ml-2 shrink-0">${(item.precio || 0).toLocaleString()} USD</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 flex items-center justify-between text-xs col-span-2">
+                            <span className="font-semibold text-slate-800">{patientFin.procedimiento}</span>
+                            <span className="font-bold text-slate-900">${(patientFin.costoTotalCirugia || 0).toLocaleString()} USD</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -943,6 +996,21 @@ export const Patient360Modal: React.FC<Patient360ModalProps> = ({
           reintegro={patientReintegro}
           paciente={paciente}
           onClose={() => setSelectedRefundForReceipt(null)}
+        />
+      )}
+
+      {/* MODAL AGREGAR CIRUGÍA ADICIONAL & RECÁLCULO FINANCIERO */}
+      {showAddSurgeryModal && (
+        <AddAdditionalSurgeryModal
+          paciente={paciente}
+          plan={patientFin}
+          pagos={pagos}
+          userRole={userRole}
+          onClose={() => setShowAddSurgeryModal(false)}
+          onPlanUpdated={() => {
+            if (onRefreshData) onRefreshData();
+            setShowAddSurgeryModal(false);
+          }}
         />
       )}
     </div>

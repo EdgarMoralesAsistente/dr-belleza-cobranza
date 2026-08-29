@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   Scissors,
@@ -23,7 +23,8 @@ import {
   MapPin,
   Info,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  Search
 } from 'lucide-react';
 import { StorageService } from '../services/storageService';
 import { Usuario, RolUsuario, getRolePermissions } from '../types';
@@ -70,10 +71,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
 
   // --- ESTADOS DE CONFIGURACIÓN ---
   const [catalog, setCatalog] = useState<ProcedureCatalogItem[]>(() => getActiveCatalog());
+  const [searchProcCatalog, setSearchProcCatalog] = useState('');
   const [coupons, setCoupons] = useState<CouponItem[]>(() => getActiveCoupons());
   const [plans, setPlans] = useState<FinancingPlanOption[]>(() => getActivePlanOptions());
   const [clinicConfig, setClinicConfig] = useState<ClinicConfig>(() => getClinicConfig());
   const [gasUrl, setGasUrl] = useState(() => StorageService.getGasUrl());
+
+  // Sincronización en tiempo real con cambios de catálogo multiusuario
+  useEffect(() => {
+    const handleUpdate = () => {
+      setCatalog(getActiveCatalog());
+    };
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('catalog-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('catalog-updated', handleUpdate);
+    };
+  }, []);
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -103,9 +118,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
       activo: true
     };
 
-    const updated = [newItem, ...catalog];
+    const updated = StorageService.addCatalogItem(newItem);
     setCatalog(updated);
-    StorageService.saveCatalog(updated);
     setNewProcName('');
     setNewProcPrice(2000);
     setShowAddProc(false);
@@ -495,6 +509,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
               </form>
             )}
 
+            {/* BARRA DE BÚSQUEDA Y FILTRADO DEL CATÁLOGO */}
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 absolute left-3 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar procedimiento en el catálogo (ej. Lipo, Rino, Aumento...)"
+                value={searchProcCatalog}
+                onChange={(e) => setSearchProcCatalog(e.target.value)}
+                className="w-full pl-9 pr-24 py-2 bg-white border border-slate-200 rounded-xl text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all shadow-2xs"
+              />
+              <div className="absolute right-2 flex items-center space-x-1.5">
+                {searchProcCatalog && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchProcCatalog('')}
+                    className="px-2 py-0.5 text-[10px] text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded flex items-center space-x-1 transition-colors cursor-pointer"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Limpiar</span>
+                  </button>
+                )}
+                <span className="text-[10px] text-slate-500 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md font-mono">
+                  {catalog.filter(p => p.nombre.toLowerCase().includes(searchProcCatalog.toLowerCase().trim())).length} de {catalog.length}
+                </span>
+              </div>
+            </div>
+
             {/* TABLA DE PROCEDIMIENTOS */}
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left text-xs">
@@ -508,56 +550,81 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {catalog.map((item) => {
-                    const isActivo = item.activo !== false;
-                    return (
-                      <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${!isActivo ? 'opacity-50 bg-slate-50/50' : ''}`}>
-                        <td className="p-3 font-bold text-slate-900">{item.nombre}</td>
-                        <td className="p-3">
-                          <span className="px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-md font-semibold text-[10px]">
-                            {item.categoria}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right font-extrabold text-teal-700 text-sm">
-                          <div className="flex items-center justify-end space-x-1">
-                            <span>$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="50"
-                              value={item.precioDefault}
-                              onChange={(e) => handleUpdateProcPrice(item.id, Number(e.target.value))}
-                              className="w-24 text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded font-bold text-teal-800 focus:bg-white"
-                            />
-                            <span className="text-[10px] text-slate-400 font-normal">USD</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleProcStatus(item.id)}
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all ${
-                              isActivo
-                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                            }`}
-                          >
-                            {isActivo ? '● Activo' : '○ Inactivo'}
-                          </button>
-                        </td>
-                        <td className="p-3 text-right space-x-1">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProcedure(item.id)}
-                            className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Eliminar procedimiento"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
+                  {(() => {
+                    const filtered = catalog.filter(item =>
+                      item.nombre.toLowerCase().includes(searchProcCatalog.toLowerCase().trim())
                     );
-                  })}
+
+                    if (filtered.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-slate-500">
+                            <Search className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+                            <p className="font-semibold text-slate-700">No se encontraron procedimientos</p>
+                            <p className="text-slate-400 text-xs">No hay procedimientos que coincidan con &ldquo;{searchProcCatalog}&rdquo;</p>
+                            <button
+                              type="button"
+                              onClick={() => setSearchProcCatalog('')}
+                              className="mt-2 text-xs text-teal-700 font-bold hover:underline"
+                            >
+                              Restablecer búsqueda
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filtered.map((item) => {
+                      const isActivo = item.activo !== false;
+                      return (
+                        <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${!isActivo ? 'opacity-50 bg-slate-50/50' : ''}`}>
+                          <td className="p-3 font-bold text-slate-900">{item.nombre}</td>
+                          <td className="p-3">
+                            <span className="px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-md font-semibold text-[10px]">
+                              {item.categoria}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-extrabold text-teal-700 text-sm">
+                            <div className="flex items-center justify-end space-x-1">
+                              <span>$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="50"
+                                value={item.precioDefault}
+                                onChange={(e) => handleUpdateProcPrice(item.id, Number(e.target.value))}
+                                className="w-24 text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded font-bold text-teal-800 focus:bg-white"
+                              />
+                              <span className="text-[10px] text-slate-400 font-normal">USD</span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProcStatus(item.id)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all ${
+                                isActivo
+                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                  : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                              }`}
+                            >
+                              {isActivo ? '● Activo' : '○ Inactivo'}
+                            </button>
+                          </td>
+                          <td className="p-3 text-right space-x-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProcedure(item.id)}
+                              className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Eliminar procedimiento"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>

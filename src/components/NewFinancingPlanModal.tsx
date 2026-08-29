@@ -12,9 +12,10 @@ import {
   Calendar,
   CheckSquare,
   Square,
-  Gift
+  Gift,
+  Search
 } from 'lucide-react';
-import { FinanciamientoCirugia, Paciente } from '../types';
+import { FinanciamientoCirugia, Paciente, RolUsuario, getRolePermissions } from '../types';
 import { StorageService } from '../services/storageService';
 import {
   getActiveCatalog,
@@ -32,14 +33,39 @@ interface NewFinancingPlanModalProps {
   preselectedPatient?: Paciente | null;
   onClose: () => void;
   onSave: (plan: FinanciamientoCirugia) => void;
+  userRole?: RolUsuario;
 }
 
 export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   pacientes,
   preselectedPatient,
   onClose,
-  onSave
+  onSave,
+  userRole
 }) => {
+  const permissions = getRolePermissions(userRole);
+
+  if (userRole && !permissions.canCreateFinancingPlan) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center space-y-4 shadow-xl border border-slate-200">
+          <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900">Acceso Restringido</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Tu perfil de usuario (<span className="font-semibold text-slate-800">{userRole}</span>) no cuenta con permisos para crear o configurar nuevos planes de financiamiento quirúrgico.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+          >
+            Cerrar Ventana
+          </button>
+        </div>
+      </div>
+    );
+  }
   const [selectedPacienteId, setSelectedPacienteId] = useState(
     preselectedPatient ? preselectedPatient.id : (pacientes[0]?.id || '')
   );
@@ -52,6 +78,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   // 2. Combo Quirúrgico (Selección Múltiple)
   const [catalog, setCatalog] = useState<ProcedureCatalogItem[]>(getActiveCatalog());
   const [selectedProcIds, setSelectedProcIds] = useState<string[]>(['proc_1']); // Default: Mamoplastia
+  const [searchProcText, setSearchProcText] = useState('');
 
   // Modal para agregar cirugía personalizada
   const [showCustomProcForm, setShowCustomProcForm] = useState(false);
@@ -74,6 +101,19 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   const [cuotasTotales, setCuotasTotales] = useState<number>(12);
   const [montoInicial, setMontoInicial] = useState<number | string>(1000);
   const [fechaEstimadaCirugia, setFechaEstimadaCirugia] = useState('2026-06-15');
+
+  // Sincronización en tiempo real del catálogo quirúrgico multiusuario
+  useEffect(() => {
+    const handleUpdate = () => {
+      setCatalog(getActiveCatalog());
+    };
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('catalog-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('catalog-updated', handleUpdate);
+    };
+  }, []);
 
   // CÁLCULOS EN TIEMPO REAL
   const selectedProcedures = catalog.filter(p => selectedProcIds.includes(p.id));
@@ -163,12 +203,14 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
     const newProc: ProcedureCatalogItem = {
       id: `custom_${Date.now()}`,
       nombre: customProcName.trim(),
-      categoria: 'Personalizada',
-      precioDefault: Number(customProcPrice)
+      categoria: 'Cirugía Especial',
+      precioDefault: Number(customProcPrice),
+      activo: true
     };
 
-    setCatalog([...catalog, newProc]);
-    setSelectedProcIds([...selectedProcIds, newProc.id]);
+    const updated = StorageService.addCatalogItem(newProc);
+    setCatalog(updated);
+    setSelectedProcIds(prev => prev.includes(newProc.id) ? prev : [...prev, newProc.id]);
     setCustomProcName('');
     setCustomProcPrice(1500);
     setShowCustomProcForm(false);
@@ -188,7 +230,9 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
       activo: true
     };
 
-    setCouponsList([...couponsList, newCoupon]);
+    const updatedCoupons = [...couponsList, newCoupon];
+    setCouponsList(updatedCoupons);
+    StorageService.saveCoupons(updatedCoupons);
     setSelectedCouponCode(formattedCode);
     setNewCouponCode('');
     setNewCouponDesc('');
@@ -403,35 +447,88 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
               </div>
             )}
 
+            {/* BARRA DE BÚSQUEDA Y FILTRADO DE PROCEDIMIENTOS */}
+            <div className="relative flex items-center">
+              <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar procedimiento por nombre (ej. Lipo, Rino, Mamoplastia...)"
+                value={searchProcText}
+                onChange={(e) => setSearchProcText(e.target.value)}
+                className="w-full pl-8 pr-20 py-2 bg-white border border-slate-200 rounded-xl text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all shadow-2xs"
+              />
+              <div className="absolute right-2 flex items-center space-x-1">
+                {searchProcText && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchProcText('')}
+                    className="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded flex items-center space-x-0.5 transition-colors cursor-pointer"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Borrar</span>
+                  </button>
+                )}
+                <span className="text-[10px] text-slate-400 px-1.5 py-0.5 bg-slate-50 border border-slate-100 rounded-md font-mono">
+                  {catalog.filter(p => p.nombre.toLowerCase().includes(searchProcText.toLowerCase().trim())).length}/{catalog.length}
+                </span>
+              </div>
+            </div>
+
             {/* LISTA DE CHECKBOXES DE CATÁLOGO */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
-              {catalog.map(proc => {
-                const isSelected = selectedProcIds.includes(proc.id);
-                return (
-                  <div
-                    key={proc.id}
-                    onClick={() => toggleProcedure(proc.id)}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
-                      isSelected
-                        ? 'border-teal-500 bg-white shadow-2xs text-teal-950 font-bold'
-                        : 'border-slate-200 bg-white/60 hover:bg-white text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2 min-w-0 pr-2">
-                      <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-teal-600 text-white' : 'border border-slate-300'
-                      }`}>
-                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                      </div>
-                      <span className="truncate text-[11px]">{proc.nombre}</span>
-                    </div>
-
-                    <span className="text-[11px] font-bold text-teal-700 shrink-0">
-                      ${proc.precioDefault.toLocaleString()}
-                    </span>
-                  </div>
+              {(() => {
+                const filteredList = catalog.filter(proc =>
+                  proc.nombre.toLowerCase().includes(searchProcText.toLowerCase().trim())
                 );
-              })}
+
+                if (filteredList.length === 0) {
+                  return (
+                    <div className="col-span-full py-6 text-center text-slate-500 text-xs flex flex-col items-center justify-center space-y-1">
+                      <Search className="w-5 h-5 text-slate-300" />
+                      <p className="font-medium text-slate-700">No se encontraron procedimientos</p>
+                      <p className="text-[11px] text-slate-400">
+                        No hay coincidencias para &ldquo;{searchProcText}&rdquo;.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSearchProcText('')}
+                        className="mt-1 text-[11px] text-teal-700 font-semibold hover:underline cursor-pointer"
+                      >
+                        Limpiar filtro
+                      </button>
+                    </div>
+                  );
+                }
+
+                return filteredList.map(proc => {
+                  const isSelected = selectedProcIds.includes(proc.id);
+                  return (
+                    <div
+                      key={proc.id}
+                      onClick={() => toggleProcedure(proc.id)}
+                      className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between gap-2 select-none ${
+                        isSelected
+                          ? 'border-teal-500 bg-white shadow-2xs text-teal-950 font-bold'
+                          : 'border-slate-200 bg-white/60 hover:bg-white text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0 pr-2 flex-1">
+                        <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 ${
+                          isSelected ? 'bg-teal-600 text-white' : 'border border-slate-300'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <span className="truncate text-[11px]">{proc.nombre}</span>
+                      </div>
+
+                      <span className="text-[11px] font-bold text-teal-700 shrink-0">
+                        ${proc.precioDefault.toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                });
+              })()}
             </div>
 
             {/* RESUMEN DEL COMBO SELECCIONADO */}

@@ -293,6 +293,7 @@ export default function App() {
                 pacientes={pacientes}
                 financiamientos={financiamientos}
                 pagos={pagos}
+                userRole={currentUser.rol}
                 onNewActivity={() => {
                   setPreselectedPatientForActivity(null);
                   setShowNewActivityModal(true);
@@ -300,7 +301,7 @@ export default function App() {
                 onUpdateActivity={handleUpdateActivity}
                 onUpdatePatient={handleUpdatePatient}
                 onSelectPatient={handleOpen360ByPatientId}
-                onNewPatient={() => setShowNewPatientModal(true)}
+                onNewPatient={permissions.canAddPatient ? () => setShowNewPatientModal(true) : undefined}
                 onNewActivityForPatient={(p) => {
                   setPreselectedPatientForActivity(p);
                   setShowNewActivityModal(true);
@@ -316,6 +317,7 @@ export default function App() {
               <FinancingView
                 financiamientos={financiamientos}
                 pacientes={pacientes}
+                pagos={pagos}
                 userRole={currentUser.rol}
                 onNewFinancingPlan={() => {
                   setPreselectedPatientForFinancing(null);
@@ -326,6 +328,7 @@ export default function App() {
                   setShowNewPaymentModal(true);
                 }}
                 onSelectPatient={handleOpen360ByPatientId}
+                onRefresh={refreshData}
               />
             )}
 
@@ -428,6 +431,7 @@ export default function App() {
       {/* MODAL NUEVO PACIENTE */}
       {showNewPatientModal && permissions.canAddPatient && (
         <NewPatientModal
+          userRole={currentUser.rol}
           onClose={() => setShowNewPatientModal(false)}
           onSave={handleSavePatient}
         />
@@ -466,6 +470,7 @@ export default function App() {
         <NewFinancingPlanModal
           pacientes={pacientes}
           preselectedPatient={preselectedPatientForFinancing}
+          userRole={currentUser.rol}
           onClose={() => {
             setShowNewFinancingModal(false);
             setPreselectedPatientForFinancing(null);

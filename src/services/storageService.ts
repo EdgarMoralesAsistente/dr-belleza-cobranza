@@ -17,7 +17,7 @@ import {
   INITIAL_REINTEGROS
 } from './mockData';
 import { GasService } from './gasService';
-import { calculatePaymentSchedule } from './financingConfig';
+import { calculatePaymentSchedule, ProcedureCatalogItem, INITIAL_PROCEDURES_CATALOG } from './financingConfig';
 
 const KEYS = {
   PACIENTES: 'drb_pacientes_v1',
@@ -1621,6 +1621,31 @@ export class StorageService {
           this.saveReintegros(remoteReint);
         }
 
+        // 7. Catálogo Quirúrgico: Integración remota desde Google Sheets y consolidación
+        if (data.catalogo && Array.isArray(data.catalogo)) {
+          const remoteCatalog: ProcedureCatalogItem[] = data.catalogo
+            .filter((c: any) => c && (c.Nombre || c.nombre))
+            .map((c: any) => ({
+              id: c.ID || c.id || `proc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              nombre: cleanField(c.Nombre || c.nombre),
+              categoria: cleanField(c.Categoria || c.categoria, 'General'),
+              precioDefault: Number(c.Precio_Default || c.precioDefault || c.precio || 1500),
+              activo: String(c.Activo || c.activo).toLowerCase() !== 'false' && String(c.Activo || c.activo).toLowerCase() !== 'no'
+            }));
+
+          if (remoteCatalog.length > 0) {
+            const currentLocal = this.getCatalog();
+            const map = new Map<string, ProcedureCatalogItem>();
+            currentLocal.forEach(p => map.set(p.nombre.toLowerCase().trim(), p));
+            remoteCatalog.forEach((p: ProcedureCatalogItem) => map.set(p.nombre.toLowerCase().trim(), p));
+            this.saveCatalog(Array.from(map.values()));
+          }
+        } else {
+          // Re-consolidar catálogo local con los nuevos financiamientos y pacientes descargados
+          const consolidated = this.getCatalog();
+          this.saveCatalog(consolidated);
+        }
+
         localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
         window.dispatchEvent(new Event('storage'));
         return { success: true, message: '¡Datos descargados y sincronizados correctamente desde Google Sheets!' };
@@ -1646,7 +1671,8 @@ export class StorageService {
         usuarios: this.getUsuarios(),
         actividades: this.getActividades(),
         financiamientos: this.getFinanciamientos(),
-        reintegros: this.getReintegros()
+        reintegros: this.getReintegros(),
+        catalogo: this.getCatalog()
       };
 
       const result = await GasService.sendPost(gasUrl, payload);
@@ -1663,15 +1689,142 @@ export class StorageService {
     }
   }
 
-  // --- CONFIGURACIÓN DEL SISTEMA ---
-  static getCatalog(): any[] {
-    const data = localStorage.getItem(KEYS.CATALOG);
-    if (data) return JSON.parse(data);
-    return [];
+  // --- CONFIGURACIÓN DEL SISTEMA Y CATÁLOGO QUIRÚRGICO MULTIUSUARIO ---
+  static getCatalog(): ProcedureCatalogItem[] {
+    let list: ProcedureCatalogItem[] = [];
+    try {
+      const raw = localStorage.getItem(KEYS.CATALOG);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          list = parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al leer catálogo local', e);
+    }
+
+    // Mapa único indexado por nombre normalizado (en minúsculas y sin espacios)
+    const mapByName = new Map<string, ProcedureCatalogItem>();
+
+    // 1. Cirugías base predeterminadas
+    INITIAL_PROCEDURES_CATALOG.forEach(proc => {
+      mapByName.set(proc.nombre.trim().toLowerCase(), { ...proc });
+    });
+
+    // 2. Cirugías guardadas en catálogo local (incluye modificaciones de precios y cirugías añadidas)
+    list.forEach(proc => {
+      if (proc && proc.nombre) {
+        const key = String(proc.nombre).trim().toLowerCase();
+        if (key) {
+          mapByName.set(key, {
+            id: proc.id || `proc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            nombre: String(proc.nombre).trim(),
+            categoria: proc.categoria || 'Cirugía Especial',
+            precioDefault: Number(proc.precioDefault || (proc as any).precio || 1500),
+            activo: proc.activo !== false
+          });
+        }
+      }
+    });
+
+    // 3. Extracción automática desde todos los Financiamientos registrados (garantiza que cirugías creadas por cualquier usuario aparezcan a todos)
+    const financiamientos = this.getFinanciamientos();
+    financiamientos.forEach(f => {
+      if (Array.isArray(f.comboProcedimientos)) {
+        f.comboProcedimientos.forEach(cp => {
+          if (cp && cp.nombre) {
+            const key = String(cp.nombre).trim().toLowerCase();
+            if (key && !mapByName.has(key)) {
+              mapByName.set(key, {
+                id: cp.id || `proc_fin_${Math.random().toString(36).substring(2, 7)}`,
+                nombre: String(cp.nombre).trim(),
+                categoria: 'Cirugía Especial',
+                precioDefault: Number(cp.precio || 1500),
+                activo: true
+              });
+            }
+          }
+        });
+      }
+      if (f.procedimiento && typeof f.procedimiento === 'string') {
+        const procs = f.procedimiento.split(/[,+/]/).map(s => s.trim()).filter(Boolean);
+        procs.forEach(name => {
+          const key = name.toLowerCase();
+          if (key && !mapByName.has(key)) {
+            mapByName.set(key, {
+              id: `proc_fin_${Math.random().toString(36).substring(2, 7)}`,
+              nombre: name,
+              categoria: 'Cirugía Especial',
+              precioDefault: 2000,
+              activo: true
+            });
+          }
+        });
+      }
+    });
+
+    // 4. Extracción automática desde todos los Pacientes registrados
+    const pacientes = this.getPacientes();
+    pacientes.forEach(p => {
+      if (p && p.procedimiento && typeof p.procedimiento === 'string') {
+        const procs = p.procedimiento.split(/[,+/]/).map(s => s.trim()).filter(Boolean);
+        procs.forEach(name => {
+          const key = name.toLowerCase();
+          if (key && !mapByName.has(key)) {
+            mapByName.set(key, {
+              id: `proc_pac_${Math.random().toString(36).substring(2, 7)}`,
+              nombre: name,
+              categoria: 'Cirugía Especial',
+              precioDefault: 2000,
+              activo: true
+            });
+          }
+        });
+      }
+    });
+
+    return Array.from(mapByName.values());
   }
 
-  static saveCatalog(list: any[]): void {
+  static saveCatalog(list: ProcedureCatalogItem[]): void {
     localStorage.setItem(KEYS.CATALOG, JSON.stringify(list));
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('catalog-updated', { detail: list }));
+
+    // Sincronizar asíncronamente con Google Sheets si la URL está configurada
+    const gasUrl = this.getGasUrl();
+    if (gasUrl) {
+      GasService.sendPost(gasUrl, {
+        action: 'syncCatalog',
+        catalogo: list
+      }).catch(err => {
+        console.warn('Sincronización en segundo plano de catálogo con Sheets:', err);
+      });
+    }
+  }
+
+  static addCatalogItem(item: ProcedureCatalogItem): ProcedureCatalogItem[] {
+    const current = this.getCatalog();
+    const existingIndex = current.findIndex(
+      p => p.id === item.id || p.nombre.trim().toLowerCase() === item.nombre.trim().toLowerCase()
+    );
+
+    let updated: ProcedureCatalogItem[];
+    if (existingIndex >= 0) {
+      updated = [...current];
+      updated[existingIndex] = {
+        ...updated[existingIndex],
+        ...item,
+        precioDefault: Number(item.precioDefault || (item as any).precio || updated[existingIndex].precioDefault),
+        activo: true
+      };
+    } else {
+      updated = [...current, { ...item, activo: true }];
+    }
+
+    this.saveCatalog(updated);
+    return updated;
   }
 
   static getCoupons(): any[] {

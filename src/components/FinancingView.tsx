@@ -10,27 +10,34 @@ import {
   Search,
   Users
 } from 'lucide-react';
-import { FinanciamientoCirugia, Paciente, RolUsuario, getRolePermissions } from '../types';
+import { FinanciamientoCirugia, Paciente, Pago, RolUsuario, getRolePermissions } from '../types';
+import { AddAdditionalSurgeryModal } from './AddAdditionalSurgeryModal';
+import { Scissors } from 'lucide-react';
 
 interface FinancingViewProps {
   financiamientos: FinanciamientoCirugia[];
   pacientes: Paciente[];
+  pagos?: Pago[];
   userRole?: RolUsuario;
   onNewFinancingPlan: () => void;
   onOpenNewPaymentForPatient: (paciente: Paciente) => void;
   onSelectPatient: (pacienteId: string) => void;
+  onRefresh?: () => void;
 }
 
 export const FinancingView: React.FC<FinancingViewProps> = ({
   financiamientos,
   pacientes,
+  pagos = [],
   userRole,
   onNewFinancingPlan,
   onOpenNewPaymentForPatient,
-  onSelectPatient
+  onSelectPatient,
+  onRefresh
 }) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('Todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPlanForSurgery, setSelectedPlanForSurgery] = useState<{ plan: FinanciamientoCirugia; paciente: Paciente } | null>(null);
 
   const permissions = getRolePermissions(userRole);
 
@@ -206,21 +213,34 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
                 </div>
 
                 {/* FOOTER ACCIONES */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
                   <span className="text-[11px] text-slate-400 flex items-center">
                     <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" />
                     Op. Est.: <strong className="ml-1 text-slate-700">{plan.fechaEstimadaCirugia}</strong>
                   </span>
 
-                  {permissions.canRegisterPayment && paciente && (
-                    <button
-                      onClick={() => onOpenNewPaymentForPatient(paciente)}
-                      className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs transition-colors flex items-center space-x-1 cursor-pointer"
-                    >
-                      <DollarSign className="w-3.5 h-3.5" />
-                      <span>Registrar Abono</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {(permissions.canCreateFinancingPlan || permissions.canEditPatient || permissions.canAddPatient) && paciente && (
+                      <button
+                        onClick={() => setSelectedPlanForSurgery({ plan, paciente })}
+                        className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold text-xs rounded-lg border border-teal-200 transition-colors flex items-center space-x-1 cursor-pointer"
+                        title="Agregar cirugía adicional del catálogo a este plan"
+                      >
+                        <Scissors className="w-3.5 h-3.5" />
+                        <span>+ Cirugía</span>
+                      </button>
+                    )}
+
+                    {permissions.canRegisterPayment && paciente && (
+                      <button
+                        onClick={() => onOpenNewPaymentForPatient(paciente)}
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs transition-colors flex items-center space-x-1 cursor-pointer"
+                      >
+                        <DollarSign className="w-3.5 h-3.5" />
+                        <span>Registrar Abono</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
               </div>
@@ -229,6 +249,20 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
         )}
       </div>
 
+      {/* MODAL AGREGAR CIRUGÍA ADICIONAL DESDE FINANCING VIEW */}
+      {selectedPlanForSurgery && (
+        <AddAdditionalSurgeryModal
+          paciente={selectedPlanForSurgery.paciente}
+          plan={selectedPlanForSurgery.plan}
+          pagos={pagos}
+          userRole={userRole}
+          onClose={() => setSelectedPlanForSurgery(null)}
+          onPlanUpdated={() => {
+            setSelectedPlanForSurgery(null);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 };
