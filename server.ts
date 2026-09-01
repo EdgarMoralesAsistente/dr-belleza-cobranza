@@ -22,6 +22,25 @@ async function startServer() {
     });
   });
 
+  // Endpoint para obtener y compartir la URL de Google Apps Script centralizada
+  let sharedGasUrl = process.env.VITE_GAS_URL || process.env.GAS_URL || "";
+
+  app.get("/api/gas-config", (req, res) => {
+    res.json({
+      success: true,
+      gasUrl: sharedGasUrl || process.env.VITE_GAS_URL || process.env.GAS_URL || ""
+    });
+  });
+
+  app.post("/api/gas-config", (req, res) => {
+    const { gasUrl } = req.body;
+    if (gasUrl && typeof gasUrl === "string") {
+      sharedGasUrl = gasUrl.trim();
+      return res.json({ success: true, gasUrl: sharedGasUrl });
+    }
+    return res.status(400).json({ error: "Invalid gasUrl" });
+  });
+
   // Proxy endpoint para Google Apps Script
   app.post("/api/gas-proxy", async (req, res) => {
     const { gasUrl, payload } = req.body;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lock,
   Mail,
@@ -21,6 +21,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Sincronización proactiva de usuarios en segundo plano al cargar la pantalla de login
+  useEffect(() => {
+    StorageService.initGasConfig().then(() => {
+      StorageService.syncFromGas().catch(() => {});
+    });
+
+    const intervalId = setInterval(() => {
+      StorageService.syncFromGas().catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

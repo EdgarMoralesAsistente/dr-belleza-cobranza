@@ -788,17 +788,93 @@ export class StorageService {
     window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
+  private static isSyncingGas = false;
+  private static inMemoryGasUrl = '';
+  private static lastSyncSuccessful = false;
+  private static lastSyncTimestamp: string | null = null;
+  private static lastSyncError: string | null = null;
+
+  static isSyncActive(): boolean {
+    return this.isSyncingGas;
+  }
+
+  static isConnectedAndSynced(): boolean {
+    const url = this.getGasUrl();
+    if (!url) return false;
+    const lastSync = localStorage.getItem(KEYS.LAST_SYNC);
+    return Boolean(lastSync) && this.lastSyncSuccessful;
+  }
+
+  static getSyncState(): {
+    isSynced: boolean;
+    isSyncing: boolean;
+    hasUrl: boolean;
+    lastSync: string | null;
+    error: string | null;
+  } {
+    const url = this.getGasUrl();
+    const lastSync = localStorage.getItem(KEYS.LAST_SYNC) || this.lastSyncTimestamp;
+    return {
+      isSynced: Boolean(url && lastSync && this.lastSyncSuccessful),
+      isSyncing: this.isSyncingGas,
+      hasUrl: Boolean(url),
+      lastSync,
+      error: this.lastSyncError
+    };
+  }
+
   static getGasUrl(): string {
+    if (this.inMemoryGasUrl) {
+      return GasService.normalizeUrl(this.inMemoryGasUrl);
+    }
     const savedUrl = localStorage.getItem(KEYS.GAS_URL);
     if (savedUrl && savedUrl.trim()) {
       return GasService.normalizeUrl(savedUrl);
     }
-    const envUrl = (import.meta as any).env?.VITE_GAS_URL || (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL || '';
+    const envUrl = (import.meta as any).env?.VITE_GAS_URL || 
+                   (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL || 
+                   (import.meta as any).env?.VITE_APPS_SCRIPT_URL || 
+                   (window as any).__DRB_GAS_URL__ || '';
     return envUrl ? GasService.normalizeUrl(envUrl) : '';
   }
 
+  static async initGasConfig(): Promise<string> {
+    const current = this.getGasUrl();
+    if (current) return current;
+
+    try {
+      const res = await fetch('/api/gas-config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.gasUrl) {
+          const clean = GasService.normalizeUrl(data.gasUrl);
+          this.inMemoryGasUrl = clean;
+          localStorage.setItem(KEYS.GAS_URL, clean);
+          window.dispatchEvent(new CustomEvent('drb-data-changed'));
+          return clean;
+        }
+      }
+    } catch (e) {
+      // Ignorar si el endpoint no está disponible en despliegues estáticos
+    }
+    return '';
+  }
+
   static saveGasUrl(url: string): void {
-    localStorage.setItem(KEYS.GAS_URL, url.trim());
+    const clean = GasService.normalizeUrl(url.trim());
+    this.inMemoryGasUrl = clean;
+    localStorage.setItem(KEYS.GAS_URL, clean);
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
+
+    // Intentar sincronizar URL con el backend para que otros usuarios la obtengan
+    try {
+      fetch('/api/gas-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gasUrl: clean })
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   static getAuthenticatedUser(): Usuario | null {
@@ -1620,10 +1696,20 @@ export class StorageService {
 
   // --- SINCRONIZACIÓN COMPLETA DESDE GOOGLE SHEETS ---
   static async syncFromGas(): Promise<{ success: boolean; message: string }> {
-    const gasUrl = this.getGasUrl();
+    if (this.isSyncingGas) {
+      return { success: true, message: 'Sincronización en curso...' };
+    }
+
+    let gasUrl = this.getGasUrl();
+    if (!gasUrl) {
+      gasUrl = await this.initGasConfig();
+    }
+
     if (!gasUrl) {
       return { success: false, message: 'Ingresa primero la URL de tu Web App de Google Apps Script' };
     }
+
+    this.isSyncingGas = true;
 
     try {
       const data = await GasService.sendGet(gasUrl, 'getAllData');
@@ -1923,14 +2009,26 @@ export class StorageService {
           this.saveCatalog(consolidated);
         }
 
-        localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
+        const nowIso = new Date().toISOString();
+        localStorage.setItem(KEYS.LAST_SYNC, nowIso);
+        this.lastSyncSuccessful = true;
+        this.lastSyncTimestamp = nowIso;
+        this.lastSyncError = null;
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('drb-data-changed'));
         return { success: true, message: '¡Datos descargados y sincronizados correctamente desde Google Sheets!' };
       }
+      this.lastSyncSuccessful = false;
+      this.lastSyncError = data?.error || 'Respuesta no válida de Google Sheets';
+      window.dispatchEvent(new CustomEvent('drb-data-changed'));
       return { success: false, message: data.error || 'Respuesta de sincronización no válida.' };
     } catch (err: any) {
+      this.lastSyncSuccessful = false;
+      this.lastSyncError = err.message || 'Error de conexión';
+      window.dispatchEvent(new CustomEvent('drb-data-changed'));
       return { success: false, message: err.message || 'Error durante la sincronización.' };
+    } finally {
+      this.isSyncingGas = false;
     }
   }
 

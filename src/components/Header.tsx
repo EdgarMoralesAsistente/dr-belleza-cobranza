@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   FileText,
-  LogOut
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { Usuario, ActividadCRM, RolUsuario, getRolePermissions } from '../types';
 import { StorageService } from '../services/storageService';
@@ -47,19 +48,37 @@ export const Header: React.FC<HeaderProps> = ({
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [usersList, setUsersList] = useState<Usuario[]>([]);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [syncState, setSyncState] = useState(StorageService.getSyncState());
 
   useEffect(() => {
-    const updateUsers = () => {
+    const updateHeaderState = () => {
       setUsersList(StorageService.getUsuarios());
+      setSyncState(StorageService.getSyncState());
     };
-    updateUsers();
-    window.addEventListener('storage', updateUsers);
-    window.addEventListener('drb-data-changed', updateUsers);
+    updateHeaderState();
+    window.addEventListener('storage', updateHeaderState);
+    window.addEventListener('drb-data-changed', updateHeaderState);
     return () => {
-      window.removeEventListener('storage', updateUsers);
-      window.removeEventListener('drb-data-changed', updateUsers);
+      window.removeEventListener('storage', updateHeaderState);
+      window.removeEventListener('drb-data-changed', updateHeaderState);
     };
   }, []);
+
+  const handleManualSync = async () => {
+    if (isManualSyncing) return;
+    setIsManualSyncing(true);
+    try {
+      await StorageService.syncFromGas();
+    } catch (e) {
+      console.warn('Error en sincronización manual:', e);
+    } finally {
+      setTimeout(() => {
+        setIsManualSyncing(false);
+        setSyncState(StorageService.getSyncState());
+      }, 600);
+    }
+  };
 
   // Alertas activas para hoy o vencidas
   const todayStr = new Date().toISOString().split('T')[0];
@@ -68,7 +87,8 @@ export const Header: React.FC<HeaderProps> = ({
   );
 
   const permissions = getRolePermissions(currentUser?.rol);
-  const gasUrl = StorageService.getGasUrl();
+  const isConnectedAndSynced = syncState.isSynced && syncState.hasUrl;
+  const isSyncingActive = isManualSyncing || syncState.isSyncing;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,21 +171,65 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* GOOGLE SHEETS SYNC STATUS PILL */}
-            {permissions.canAccessGas && (
+            {permissions.canAccessGas ? (
               <button
                 onClick={onOpenGasConfig}
                 className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
-                  gasUrl
+                  isConnectedAndSynced
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                    : isSyncingActive
+                    ? 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100'
+                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
                 }`}
-                title="Configuración e Integración con Google Sheets"
+                title={
+                  isConnectedAndSynced
+                    ? 'Actualizado y sincronizado con Google Sheets. Clic para configuración.'
+                    : 'Desconectado o sin sincronizar con Google Sheets. Clic para configurar.'
+                }
               >
                 <Database className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
-                  {gasUrl ? 'Google Sheets Conectado' : 'Conectar Sheets'}
+                <span className="hidden sm:inline font-semibold">
+                  {isSyncingActive ? 'Actualizando...' : isConnectedAndSynced ? 'Actualizado' : 'Desconectado'}
                 </span>
-                <span className={`w-2 h-2 rounded-full ${gasUrl ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isSyncingActive
+                      ? 'bg-sky-500 animate-spin'
+                      : isConnectedAndSynced
+                      ? 'bg-emerald-500 animate-pulse'
+                      : 'bg-rose-500'
+                  }`}
+                />
+              </button>
+            ) : (
+              <button
+                onClick={handleManualSync}
+                className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer shadow-xs ${
+                  isConnectedAndSynced
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : isSyncingActive
+                    ? 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100'
+                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                }`}
+                title={
+                  isConnectedAndSynced
+                    ? 'Actualizado en tiempo real con Google Sheets. Haz clic para forzar actualización.'
+                    : 'Desconectado de Google Sheets. Haz clic para intentar reconectar.'
+                }
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingActive ? 'animate-spin text-teal-600' : ''}`} />
+                <span className="hidden sm:inline font-semibold">
+                  {isSyncingActive ? 'Actualizando...' : isConnectedAndSynced ? 'Actualizado' : 'Desconectado'}
+                </span>
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isSyncingActive
+                      ? 'bg-sky-500 animate-spin'
+                      : isConnectedAndSynced
+                      ? 'bg-emerald-500 animate-pulse'
+                      : 'bg-rose-500'
+                  }`}
+                />
               </button>
             )}
 

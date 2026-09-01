@@ -75,29 +75,60 @@ export default function App() {
   useEffect(() => {
     refreshData();
 
-    // Carga inicial limpia desde Google Sheets si existe URL configurada
-    const gasUrl = StorageService.getGasUrl();
-    if (gasUrl) {
+    // Inicialización y carga inicial desde Google Sheets
+    StorageService.initGasConfig()
+      .then(() => StorageService.syncFromGas())
+      .then((res) => {
+        if (res && res.success) {
+          refreshData();
+        }
+      })
+      .catch((err) => {
+        console.warn('Aviso sincronización inicial:', err?.message || err);
+      });
+
+    // Sincronización continua cada 5 segundos para tiempo real entre múltiples dispositivos y usuarios
+    const pollIntervalId = setInterval(() => {
       StorageService.syncFromGas()
         .then((res) => {
           if (res && res.success) {
             refreshData();
           }
         })
-        .catch((err) => {
-          console.warn('Aviso sincronización inicial:', err?.message || err);
-        });
-    }
+        .catch(() => {});
+    }, 5000);
 
-    // Escuchar eventos de cambios en LocalStorage para mantener reactividad entre pestañas
-    const handleStorageChange = () => {
+    // Sincronización inmediata al regresar a la pestaña o enfocar la ventana
+    const handleFocusOrVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+        StorageService.syncFromGas()
+          .then((res) => {
+            if (res && res.success) {
+              refreshData();
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisibility);
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+
+    // Escuchar eventos de cambios en LocalStorage y CustomEvent para mantener reactividad entre pestañas
+    const handleDataChange = () => {
       refreshData();
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', handleDataChange);
+    window.addEventListener('drb-data-changed', handleDataChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(pollIntervalId);
+      window.removeEventListener('focus', handleFocusOrVisibility);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
+      window.removeEventListener('storage', handleDataChange);
+      window.removeEventListener('drb-data-changed', handleDataChange);
     };
   }, []);
 
