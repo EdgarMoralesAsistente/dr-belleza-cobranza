@@ -434,6 +434,7 @@ export class StorageService {
 
     localStorage.setItem(KEYS.PACIENTES, JSON.stringify(unique));
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
   static getPagos(): Pago[] {
@@ -467,10 +468,12 @@ export class StorageService {
 
     localStorage.setItem(KEYS.PAGOS, JSON.stringify(unique));
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
   static getUsuarios(): Usuario[] {
     const data = localStorage.getItem(KEYS.USUARIOS);
+    const deletedUserIds = this.getDeletedUserIds();
     let list: Usuario[] = [];
     if (data) {
       try {
@@ -493,7 +496,15 @@ export class StorageService {
       'carlos.finanzas@drbelleza.com'
     ];
     const initialCount = list.length;
-    list = list.filter(u => u && u.email && !oldDemoEmails.includes(u.email.toLowerCase()));
+    list = list.filter(u => {
+      if (!u || !u.email) return false;
+      const emailLower = u.email.toLowerCase();
+      const uIdUpper = String(u.usuarioId || '').trim().toUpperCase();
+      const emailUpper = String(u.email || '').trim().toUpperCase();
+      if (oldDemoEmails.includes(emailLower)) return false;
+      if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) return false;
+      return true;
+    });
 
     let edgarIndex = list.findIndex(u => u && u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
     if (edgarIndex === -1) {
@@ -518,6 +529,7 @@ export class StorageService {
     const normalized = (list || []).map(normalizeUsuario);
     localStorage.setItem(KEYS.USUARIOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
   static getUserRoles(): string[] {
@@ -727,6 +739,7 @@ export class StorageService {
     const normalized = (list || []).map(normalizeActividad);
     localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
   static getFinanciamientos(): FinanciamientoCirugia[] {
@@ -749,6 +762,7 @@ export class StorageService {
     const normalized = (list || []).map(normalizeFinanciamiento);
     localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
   static getReintegros(): Reintegro[] {
@@ -771,6 +785,7 @@ export class StorageService {
     const normalized = (list || []).map(normalizeReintegro);
     localStorage.setItem(KEYS.REINTEGROS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
   }
 
   static getGasUrl(): string {
@@ -932,32 +947,131 @@ export class StorageService {
   // --- GENERADORES DE IDs ---
   static generatePatientId(): string {
     const list = this.getPacientes();
-    const count = list.length + 130;
-    return `P-2026-${String(count).padStart(4, '0')}`;
+    let maxNum = 129;
+    const year = new Date().getFullYear();
+    for (const p of list) {
+      if (p && p.id) {
+        const match = p.id.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let newId = `P-${year}-${String(nextNum).padStart(4, '0')}`;
+    while (list.some(p => p.id === newId)) {
+      nextNum++;
+      newId = `P-${year}-${String(nextNum).padStart(4, '0')}`;
+    }
+    return newId;
   }
 
   static generateReceiptCode(): string {
     const pagos = this.getPagos();
-    const count = pagos.length + 1;
-    return `REC-2026-${String(count).padStart(3, '0')}`;
+    let maxNum = 0;
+    for (const p of pagos) {
+      if (p && p.cod) {
+        const match = p.cod.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let newCod = `REC-2026-${String(nextNum).padStart(3, '0')}`;
+    while (pagos.some(p => p.cod === newCod)) {
+      nextNum++;
+      newCod = `REC-2026-${String(nextNum).padStart(3, '0')}`;
+    }
+    return newCod;
   }
 
   static generateActivityId(): string {
     const list = this.getActividades();
-    const count = list.length + 1;
-    return `ACT-${String(count).padStart(3, '0')}`;
+    let maxNum = 0;
+    for (const a of list) {
+      if (a && a.actividadId) {
+        const match = a.actividadId.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let newId = `ACT-${String(nextNum).padStart(3, '0')}`;
+    while (list.some(a => a.actividadId === newId)) {
+      nextNum++;
+      newId = `ACT-${String(nextNum).padStart(3, '0')}`;
+    }
+    return newId;
   }
 
   static generatePlanId(): string {
     const list = this.getFinanciamientos();
-    const count = list.length + 1;
-    return `FIN-2026-${String(count).padStart(3, '0')}`;
+    let maxNum = 0;
+    for (const f of list) {
+      if (f && f.planId) {
+        const match = f.planId.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let newId = `FIN-2026-${String(nextNum).padStart(3, '0')}`;
+    while (list.some(f => f.planId === newId)) {
+      nextNum++;
+      newId = `FIN-2026-${String(nextNum).padStart(3, '0')}`;
+    }
+    return newId;
   }
 
   static generateReintegroId(): string {
     const list = this.getReintegros();
-    const count = list.length + 1;
-    return `REINT-2026-${String(count).padStart(3, '0')}`;
+    let maxNum = 0;
+    for (const r of list) {
+      if (r && r.reintegroId) {
+        const match = r.reintegroId.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let newId = `REINT-2026-${String(nextNum).padStart(3, '0')}`;
+    while (list.some(r => r.reintegroId === newId)) {
+      nextNum++;
+      newId = `REINT-2026-${String(nextNum).padStart(3, '0')}`;
+    }
+    return newId;
+  }
+
+  static generateUserId(): string {
+    const list = this.getUsuarios();
+    let maxNum = 0;
+    for (const u of list) {
+      if (u && u.usuarioId) {
+        const match = u.usuarioId.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let newId = `USR-${String(nextNum).padStart(3, '0')}`;
+    while (list.some(u => u.usuarioId === newId)) {
+      nextNum++;
+      newId = `USR-${String(nextNum).padStart(3, '0')}`;
+    }
+    return newId;
   }
 
   // --- REGISTRO DE TELÉFONOS EN VAULT PERSISTENTE ---
@@ -1028,6 +1142,36 @@ export class StorageService {
     const current = this.getDeletedPatientIds();
     current.delete(String(id).trim().toUpperCase());
     localStorage.setItem('drb_deleted_pacientes_v1', JSON.stringify(Array.from(current)));
+  }
+
+  // --- REGISTRO DE USUARIOS ELIMINADOS (TOMBSTONES) ---
+  static getDeletedUserIds(): Set<string> {
+    try {
+      const data = localStorage.getItem('drb_deleted_usuarios_v1');
+      if (data) {
+        const arr = JSON.parse(data);
+        if (Array.isArray(arr)) {
+          return new Set(arr.map((id: string) => String(id).trim().toUpperCase()));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return new Set<string>();
+  }
+
+  static addDeletedUserId(id?: string, email?: string): void {
+    const current = this.getDeletedUserIds();
+    if (id) current.add(String(id).trim().toUpperCase());
+    if (email) current.add(String(email).trim().toUpperCase());
+    localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
+  }
+
+  static removeDeletedUserId(id?: string, email?: string): void {
+    const current = this.getDeletedUserIds();
+    if (id) current.delete(String(id).trim().toUpperCase());
+    if (email) current.delete(String(email).trim().toUpperCase());
+    localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
   }
 
   // --- OPERACIONES DE PACIENTES ---
@@ -1409,6 +1553,9 @@ export class StorageService {
 
   // --- OPERACIONES DE USUARIOS ---
   static saveUsuario(usuario: Usuario): void {
+    if (usuario.usuarioId) this.removeDeletedUserId(usuario.usuarioId);
+    if (usuario.email) this.removeDeletedUserId(undefined, usuario.email);
+
     const list = this.getUsuarios();
     const isEdgar = usuario.email && usuario.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
     const userToSave: Usuario = isEdgar
@@ -1455,7 +1602,10 @@ export class StorageService {
       }
     }
 
-    const updated = list.filter(u => u.usuarioId !== usuarioId);
+    // Registrar en lista de usuarios eliminados permanentes
+    this.addDeletedUserId(target.usuarioId, target.email);
+
+    const updated = list.filter(u => u.usuarioId !== usuarioId && (!target.email || u.email.toLowerCase() !== target.email.toLowerCase()));
     this.saveUsuarios(updated);
 
     const gasUrl = this.getGasUrl();
@@ -1479,11 +1629,13 @@ export class StorageService {
       const data = await GasService.sendGet(gasUrl, 'getAllData');
       if (data && data.success) {
         const deletedPatientIds = this.getDeletedPatientIds();
+        const deletedUserIds = this.getDeletedUserIds();
 
-        // 1. Pacientes: Fuente de la verdad = Google Sheets (excluyendo registros eliminados)
+        // 1. Pacientes: Merge no destructivo
         if (data.pacientes && Array.isArray(data.pacientes)) {
+          const localPacientes = this.getPacientes();
           const localPacientesMap = new Map<string, Paciente>();
-          this.getPacientes().forEach(p => {
+          localPacientes.forEach(p => {
             if (p.id) localPacientesMap.set(String(p.id).trim().toUpperCase(), p);
             if (p.cedula) localPacientesMap.set(String(p.cedula).trim().toUpperCase(), p);
             if (p.telefono && p.telefono !== 'No especificado') {
@@ -1500,7 +1652,6 @@ export class StorageService {
               const isDeleted = deletedPatientIds.has(pIdUpper) || (pCedUpper && deletedPatientIds.has(pCedUpper));
               
               if (isDeleted && gasUrl) {
-                // Notificar en segundo plano a Google Sheets para que elimine el registro si aún existía allí
                 GasService.sendPost(gasUrl, {
                   action: 'deletePaciente',
                   pacienteId: p.id,
@@ -1542,11 +1693,33 @@ export class StorageService {
               }
               return p;
             });
-          this.savePacientes(remotePacientes);
+
+          // Mezclar preservando pacientes recién registrados localmente
+          const mergedPacientesMap = new Map<string, Paciente>();
+          remotePacientes.forEach(p => {
+            const key = String(p.id || '').trim().toUpperCase();
+            if (key) mergedPacientesMap.set(key, p);
+          });
+          localPacientes.forEach(p => {
+            if (!p || !p.id) return;
+            const pIdUpper = String(p.id).trim().toUpperCase();
+            const pCedUpper = String(p.cedula || '').trim().toUpperCase();
+            if (deletedPatientIds.has(pIdUpper) || (pCedUpper && deletedPatientIds.has(pCedUpper))) return;
+
+            if (!mergedPacientesMap.has(pIdUpper)) {
+              mergedPacientesMap.set(pIdUpper, p);
+              if (gasUrl) {
+                GasService.sendPost(gasUrl, { action: 'addPaciente', paciente: p }).catch(() => {});
+              }
+            }
+          });
+
+          this.savePacientes(Array.from(mergedPacientesMap.values()));
         }
 
-        // 2. Pagos: Fuente de la verdad = Google Sheets
+        // 2. Pagos: Merge no destructivo
         if (data.pagos && Array.isArray(data.pagos)) {
+          const localPagos = this.getPagos();
           const remotePagos = data.pagos
             .map(normalizePago)
             .filter(p => {
@@ -1555,11 +1728,31 @@ export class StorageService {
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
-          this.savePagos(remotePagos);
+
+          const mergedPagosMap = new Map<string, Pago>();
+          remotePagos.forEach(p => {
+            const codKey = String(p.cod).trim().toUpperCase();
+            if (codKey) mergedPagosMap.set(codKey, p);
+          });
+          localPagos.forEach(p => {
+            if (!p || !p.cod) return;
+            const pIdUpper = String(p.id || '').trim().toUpperCase();
+            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
+            const codKey = String(p.cod).trim().toUpperCase();
+            if (!mergedPagosMap.has(codKey)) {
+              mergedPagosMap.set(codKey, p);
+              if (gasUrl) {
+                GasService.sendPost(gasUrl, { action: 'addPago', pago: p }).catch(() => {});
+              }
+            }
+          });
+
+          this.savePagos(Array.from(mergedPagosMap.values()));
         }
 
-        // 3. Usuarios: Fuente de la verdad = Google Sheets
+        // 3. Usuarios: Merge no destructivo
         if (data.usuarios && Array.isArray(data.usuarios)) {
+          const localUsuarios = this.getUsuarios();
           let remoteUsuarios = data.usuarios.map(normalizeUsuario).filter(u => u && u.usuarioId && u.email);
           const oldDemoEmails = [
             'dra.isabella@drbelleza.com',
@@ -1567,23 +1760,54 @@ export class StorageService {
             'dr.mendoza@drbelleza.com',
             'carlos.finanzas@drbelleza.com'
           ];
-          remoteUsuarios = remoteUsuarios.filter(u => !oldDemoEmails.includes(u.email.toLowerCase()));
+          remoteUsuarios = remoteUsuarios.filter(u => {
+            const emailLower = u.email.toLowerCase();
+            const uIdUpper = String(u.usuarioId).trim().toUpperCase();
+            const emailUpper = String(u.email).trim().toUpperCase();
+            if (oldDemoEmails.includes(emailLower)) return false;
+            const isDeleted = deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper);
+            if (isDeleted && gasUrl) {
+              GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: u.usuarioId, email: u.email }).catch(() => {});
+              return false;
+            }
+            return true;
+          });
 
-          let edgarIdx = remoteUsuarios.findIndex(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+          const mergedUsersMap = new Map<string, Usuario>();
+          remoteUsuarios.forEach(u => {
+            mergedUsersMap.set(String(u.usuarioId).trim().toUpperCase(), u);
+          });
+          localUsuarios.forEach(u => {
+            if (!u || !u.usuarioId) return;
+            const uIdUpper = String(u.usuarioId).trim().toUpperCase();
+            const emailUpper = String(u.email || '').trim().toUpperCase();
+            if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) return;
+
+            if (!mergedUsersMap.has(uIdUpper)) {
+              mergedUsersMap.set(uIdUpper, u);
+              if (gasUrl) {
+                GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: u }).catch(() => {});
+              }
+            }
+          });
+
+          let mergedList = Array.from(mergedUsersMap.values());
+          let edgarIdx = mergedList.findIndex(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
           if (edgarIdx === -1) {
-            remoteUsuarios = [INITIAL_USUARIOS[0], ...remoteUsuarios];
+            mergedList = [INITIAL_USUARIOS[0], ...mergedList];
           } else {
-            remoteUsuarios[edgarIdx] = {
-              ...remoteUsuarios[edgarIdx],
+            mergedList[edgarIdx] = {
+              ...mergedList[edgarIdx],
               rol: 'Administrador',
               estatus: 'Activo'
             };
           }
-          this.saveUsuarios(remoteUsuarios);
+          this.saveUsuarios(mergedList);
         }
 
-        // 4. Actividades CRM: Fuente de la verdad = Google Sheets
+        // 4. Actividades CRM: Merge no destructivo
         if (data.actividades && Array.isArray(data.actividades)) {
+          const localActividades = this.getActividades();
           const remoteCRM = data.actividades
             .map(normalizeActividad)
             .filter(a => {
@@ -1592,11 +1816,28 @@ export class StorageService {
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
-          this.saveActividades(remoteCRM);
+
+          const mergedActMap = new Map<string, ActividadCRM>();
+          remoteCRM.forEach(a => {
+            const key = String(a.actividadId).trim().toUpperCase();
+            if (key) mergedActMap.set(key, a);
+          });
+          localActividades.forEach(a => {
+            if (!a || !a.actividadId) return;
+            const pIdUpper = String(a.pacienteId || '').trim().toUpperCase();
+            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
+            const key = String(a.actividadId).trim().toUpperCase();
+            if (!mergedActMap.has(key)) {
+              mergedActMap.set(key, a);
+            }
+          });
+
+          this.saveActividades(Array.from(mergedActMap.values()));
         }
 
-        // 5. Financiamientos: Fuente de la verdad = Google Sheets
+        // 5. Financiamientos: Merge no destructivo
         if (data.financiamientos && Array.isArray(data.financiamientos)) {
+          const localFin = this.getFinanciamientos();
           const remoteFin = data.financiamientos
             .map(normalizeFinanciamiento)
             .filter(f => {
@@ -1605,11 +1846,31 @@ export class StorageService {
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
-          this.saveFinanciamientos(remoteFin);
+
+          const mergedFinMap = new Map<string, FinanciamientoCirugia>();
+          remoteFin.forEach(f => {
+            const key = String(f.planId).trim().toUpperCase();
+            if (key) mergedFinMap.set(key, f);
+          });
+          localFin.forEach(f => {
+            if (!f || !f.planId) return;
+            const pIdUpper = String(f.pacienteId || '').trim().toUpperCase();
+            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
+            const key = String(f.planId).trim().toUpperCase();
+            if (!mergedFinMap.has(key)) {
+              mergedFinMap.set(key, f);
+              if (gasUrl) {
+                GasService.sendPost(gasUrl, { action: 'saveFinanciamiento', financiamiento: f }).catch(() => {});
+              }
+            }
+          });
+
+          this.saveFinanciamientos(Array.from(mergedFinMap.values()));
         }
 
-        // 6. Reintegros: Fuente de la verdad = Google Sheets
+        // 6. Reintegros: Merge no destructivo
         if (data.reintegros && Array.isArray(data.reintegros)) {
+          const localReint = this.getReintegros();
           const remoteReint = data.reintegros
             .map(normalizeReintegro)
             .filter(r => {
@@ -1618,7 +1879,23 @@ export class StorageService {
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
-          this.saveReintegros(remoteReint);
+
+          const mergedReintMap = new Map<string, Reintegro>();
+          remoteReint.forEach(r => {
+            const key = String(r.reintegroId).trim().toUpperCase();
+            if (key) mergedReintMap.set(key, r);
+          });
+          localReint.forEach(r => {
+            if (!r || !r.reintegroId) return;
+            const pIdUpper = String(r.pacienteId || '').trim().toUpperCase();
+            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
+            const key = String(r.reintegroId).trim().toUpperCase();
+            if (!mergedReintMap.has(key)) {
+              mergedReintMap.set(key, r);
+            }
+          });
+
+          this.saveReintegros(Array.from(mergedReintMap.values()));
         }
 
         // 7. Catálogo Quirúrgico: Integración remota desde Google Sheets y consolidación
@@ -1648,6 +1925,7 @@ export class StorageService {
 
         localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
         window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('drb-data-changed'));
         return { success: true, message: '¡Datos descargados y sincronizados correctamente desde Google Sheets!' };
       }
       return { success: false, message: data.error || 'Respuesta de sincronización no válida.' };

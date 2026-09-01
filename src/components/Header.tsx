@@ -49,7 +49,16 @@ export const Header: React.FC<HeaderProps> = ({
   const [usersList, setUsersList] = useState<Usuario[]>([]);
 
   useEffect(() => {
-    setUsersList(StorageService.getUsuarios());
+    const updateUsers = () => {
+      setUsersList(StorageService.getUsuarios());
+    };
+    updateUsers();
+    window.addEventListener('storage', updateUsers);
+    window.addEventListener('drb-data-changed', updateUsers);
+    return () => {
+      window.removeEventListener('storage', updateUsers);
+      window.removeEventListener('drb-data-changed', updateUsers);
+    };
   }, []);
 
   // Alertas activas para hoy o vencidas

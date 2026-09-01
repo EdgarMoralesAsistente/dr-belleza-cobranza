@@ -235,6 +235,14 @@ function doPost(e) {
       return responseJSON({ success: true, message: 'Usuario guardado' });
     }
 
+    if (action === 'deleteUsuario') {
+      const uId = String(contents.usuarioId || '').trim();
+      const email = String(contents.email || '').trim();
+      const searchTargets = [uId, email].filter(function(t) { return t.length > 0; });
+      deleteRowsByMatchingValues(SHEETS.USUARIOS, [0, 2], searchTargets);
+      return responseJSON({ success: true, message: 'Usuario eliminado correctamente de Google Sheets.' });
+    }
+
     if (action === 'saveFinanciamiento') {
       const fin = contents.financiamiento;
       updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
