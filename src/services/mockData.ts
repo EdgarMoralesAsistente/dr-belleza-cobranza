@@ -163,21 +163,12 @@ export const INITIAL_USUARIOS: Usuario[] = [
   },
   {
     usuarioId: 'USR-002',
-    nombre: 'Dr. Alejandro Mendoza',
-    email: 'mendoza@drbelleza.com',
+    nombre: 'Maria Claudia Colmenares',
+    email: 'maria.colmenares@revierte.com',
     passwordHash: '123456',
-    rol: 'Médico',
+    rol: 'Administrador',
     estatus: 'Activo',
-    fechaCreacion: '2026-01-05'
-  },
-  {
-    usuarioId: 'USR-003',
-    nombre: 'Valeria Sánchez (Recepción)',
-    email: 'valeria@drbelleza.com',
-    passwordHash: '123456',
-    rol: 'Asistente',
-    estatus: 'Activo',
-    fechaCreacion: '2026-01-10'
+    fechaCreacion: '2026-01-01'
   }
 ];
 
@@ -202,7 +193,7 @@ export const INITIAL_ACTIVIDADES: ActividadCRM[] = [
     hora: '14:00',
     estado: 'Pendiente',
     alarma: true,
-    responsableId: 'USR-004'
+    responsableId: 'USR-001'
   },
   {
     actividadId: 'ACT-003',
@@ -219,12 +210,12 @@ export const INITIAL_ACTIVIDADES: ActividadCRM[] = [
     actividadId: 'ACT-004',
     pacienteId: 'P-2026-0133',
     tipoActividad: 'Cita',
-    descripcion: 'Evaluación Anestésica Pre-Quirúrgica con Dr. Mendoza en clínica',
+    descripcion: 'Evaluación Anestésica Pre-Quirúrgica en clínica',
     fechaProgramada: '2026-08-05',
     hora: '09:00',
     estado: 'Pendiente',
     alarma: false,
-    responsableId: 'USR-003'
+    responsableId: 'USR-002'
   },
   {
     actividadId: 'ACT-005',

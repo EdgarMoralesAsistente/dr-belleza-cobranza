@@ -307,10 +307,16 @@ export const UsersView: React.FC<UsersViewProps> = ({
                         <button
                           onClick={async () => {
                             const isEdgar = u.email && u.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
+                            const isMaria = u.email && u.email.toLowerCase().trim() === 'maria.colmenares@revierte.com';
                             const isCurrentEdgar = currentUser.email && currentUser.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
                             
                             if (isEdgar && !isCurrentEdgar) {
                               alert('El usuario Edgar Morales (Administrador Principal) está protegido y nadie más puede eliminarlo.');
+                              return;
+                            }
+
+                            if (isMaria && currentUser.rol !== 'Administrador') {
+                              alert('El usuario Maria Claudia Colmenares (Administrador) está protegido y solo puede ser gestionado por un Administrador.');
                               return;
                             }
 

@@ -480,21 +480,55 @@ export class StorageService {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
       } catch (e) {
-        list = [INITIAL_USUARIOS[0]];
+        list = [...INITIAL_USUARIOS];
       }
     }
     if (list.length === 0) {
-      list = [INITIAL_USUARIOS[0]];
+      list = [...INITIAL_USUARIOS];
     }
     list = list.map(normalizeUsuario);
     
-    // Purgar usuarios antiguos de demostración
+    // Purgar usuarios antiguos de demostración y legacy permanentemente
     const oldDemoEmails = [
       'dra.isabella@drbelleza.com',
       'maria.crm@drbelleza.com',
       'dr.mendoza@drbelleza.com',
-      'carlos.finanzas@drbelleza.com'
+      'carlos.finanzas@drbelleza.com',
+      'mendoza@drbelleza.com',
+      'valeria@drbelleza.com'
     ];
+
+    // --- PURGA ÚNICA SOLICITADA POR EL USUARIO ---
+    // Conservar ÚNICAMENTE a Edgar Morales y Maria Claudia Colmenares, y registrar los demás desde cero
+    const PURGE_KEY = 'drb_purge_all_users_except_edgar_maria_v2';
+    if (!localStorage.getItem(PURGE_KEY)) {
+      localStorage.setItem(PURGE_KEY, 'true');
+      
+      // Marcar correos de prueba y cualquier otro usuario viejo en la lista de eliminados permanentes
+      oldDemoEmails.forEach(em => this.addDeletedUserId(undefined, em));
+      list.forEach(u => {
+        const em = (u.email || '').toLowerCase().trim();
+        if (em !== 'edgarmorales.asistente@gmail.com' && em !== 'maria.colmenares@revierte.com') {
+          this.addDeletedUserId(u.usuarioId, u.email);
+        }
+      });
+
+      // Limpiar pendientes locales antiguos
+      localStorage.removeItem('drb_pending_new_usuarios_v1');
+
+      // Restablecer la lista a los dos administradores autorizados
+      list = [...INITIAL_USUARIOS];
+      localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
+
+      // Sobrescribir inmediatamente Google Sheets con la lista canónica limpia (Edgar Morales y Maria Claudia Colmenares)
+      const gasUrl = this.getGasUrl();
+      if (gasUrl) {
+        GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: list }).catch(() => {});
+        oldDemoEmails.forEach(em => {
+          GasService.sendPost(gasUrl, { action: 'deleteUsuario', email: em }).catch(() => {});
+        });
+      }
+    }
     
     // Deduplicar estrictamente por correo electrónico (normalizado a minúsculas)
     const uniqueMap = new Map<string, Usuario>();
@@ -523,14 +557,27 @@ export class StorageService {
 
     list = Array.from(uniqueMap.values());
 
+    // 1. Asegurar Edgar Morales (Administrador Principal)
     let edgarIndex = list.findIndex(u => u && u.email && u.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com');
     if (edgarIndex === -1) {
       list = [INITIAL_USUARIOS[0], ...list];
     } else {
-      // Asegurar que Edgar Morales siempre tenga el rol de Administrador
       list[edgarIndex] = {
         ...list[edgarIndex],
         nombre: list[edgarIndex].nombre || 'Edgar Morales',
+        rol: 'Administrador',
+        estatus: 'Activo'
+      };
+    }
+
+    // 2. Asegurar Maria Claudia Colmenares (Administrador)
+    let mariaIndex = list.findIndex(u => u && u.email && u.email.toLowerCase().trim() === 'maria.colmenares@revierte.com');
+    if (mariaIndex === -1) {
+      list = [...list, INITIAL_USUARIOS[1]];
+    } else {
+      list[mariaIndex] = {
+        ...list[mariaIndex],
+        nombre: list[mariaIndex].nombre || 'Maria Claudia Colmenares',
         rol: 'Administrador',
         estatus: 'Activo'
       };
@@ -1775,6 +1822,17 @@ export class StorageService {
       }
     }
 
+    const isMaria = target.email && target.email.toLowerCase().trim() === 'maria.colmenares@revierte.com';
+    if (isMaria) {
+      const isCallerAdmin = callerUser && callerUser.rol === 'Administrador';
+      if (!isCallerAdmin) {
+        return {
+          success: false,
+          message: 'El usuario Maria Claudia Colmenares (Administrador) está protegido y solo puede ser gestionado por un Administrador.'
+        };
+      }
+    }
+
     // Registrar en lista de usuarios eliminados permanentes
     this.addDeletedUserId(target.usuarioId, target.email);
     this.removePendingNewUser(target.usuarioId, target.email);
@@ -1967,7 +2025,9 @@ export class StorageService {
             'dra.isabella@drbelleza.com',
             'maria.crm@drbelleza.com',
             'dr.mendoza@drbelleza.com',
-            'carlos.finanzas@drbelleza.com'
+            'carlos.finanzas@drbelleza.com',
+            'mendoza@drbelleza.com',
+            'valeria@drbelleza.com'
           ];
           remoteUsuarios = remoteUsuarios.filter(u => {
             const emailLower = u.email.toLowerCase().trim();
@@ -2026,7 +2086,24 @@ export class StorageService {
               estatus: 'Activo'
             };
           }
+
+          let mariaIdx = mergedList.findIndex(u => u.email.toLowerCase().trim() === 'maria.colmenares@revierte.com');
+          if (mariaIdx === -1) {
+            mergedList = [...mergedList, INITIAL_USUARIOS[1]];
+          } else {
+            mergedList[mariaIdx] = {
+              ...mergedList[mariaIdx],
+              rol: 'Administrador',
+              estatus: 'Activo'
+            };
+          }
           this.saveUsuarios(mergedList);
+
+          // Si Google Sheets contenía usuarios eliminados o de prueba, limpiar la hoja en segundo plano
+          const hadDeletedOrLegacyInRemote = data.usuarios.length !== remoteUsuarios.length;
+          if (hadDeletedOrLegacyInRemote && gasUrl) {
+            GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: mergedList }).catch(() => {});
+          }
 
           // Si el usuario autenticado actualmente sufrió cambios remotos (rol, nombre, contraseña o estatus), sincronizar su sesión activa
           const currentAuth = this.getAuthenticatedUser();
@@ -2418,8 +2495,8 @@ export class StorageService {
     localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify([]));
     localStorage.setItem(KEYS.REINTEGROS, JSON.stringify([]));
     
-    // Dejar únicamente al Administrador inicial (Edgar Morales) en usuarios
-    const adminOnly = [INITIAL_USUARIOS[0]];
+    // Dejar únicamente a los Administradores autorizados (Edgar Morales y Maria Claudia Colmenares)
+    const adminOnly = [...INITIAL_USUARIOS];
     localStorage.setItem(KEYS.USUARIOS, JSON.stringify(adminOnly));
 
     if (syncToSheets) {
