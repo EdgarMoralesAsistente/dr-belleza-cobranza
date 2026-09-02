@@ -232,7 +232,8 @@ function doPost(e) {
     if (action === 'saveUsuario') {
       const u = contents.usuario;
       updateOrAppendUser(SHEETS.USUARIOS, u);
-      return responseJSON({ success: true, message: 'Usuario guardado' });
+      SpreadsheetApp.flush();
+      return responseJSON({ success: true, message: 'Usuario guardado y sincronizado' });
     }
 
     if (action === 'deleteUsuario') {
@@ -240,7 +241,28 @@ function doPost(e) {
       const email = String(contents.email || '').trim();
       const searchTargets = [uId, email].filter(function(t) { return t.length > 0; });
       deleteRowsByMatchingValues(SHEETS.USUARIOS, [0, 2], searchTargets);
+      SpreadsheetApp.flush();
       return responseJSON({ success: true, message: 'Usuario eliminado correctamente de Google Sheets.' });
+    }
+
+    if (action === 'syncUsuarios') {
+      const usuarios = contents.usuarios;
+      if (usuarios && Array.isArray(usuarios)) {
+        replaceSheetData(SHEETS.USUARIOS, usuarios.map(function(u) {
+          return [
+            u.usuarioId || '',
+            u.nombre || '',
+            u.email || '',
+            u.passwordHash || '',
+            u.rol || 'Asistente',
+            u.estatus || 'Activo',
+            u.fechaCreacion || '',
+            u.fotoUrl || ''
+          ];
+        }));
+        SpreadsheetApp.flush();
+      }
+      return responseJSON({ success: true, message: 'Usuarios sincronizados y actualizados.' });
     }
 
     if (action === 'saveFinanciamiento') {
@@ -421,6 +443,16 @@ function getOrCreateSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
+    const cleanTarget = String(sheetName || '').trim().toLowerCase();
+    const allSheets = ss.getSheets();
+    for (let i = 0; i < allSheets.length; i++) {
+      if (allSheets[i].getName().trim().toLowerCase() === cleanTarget) {
+        sheet = allSheets[i];
+        break;
+      }
+    }
+  }
+  if (!sheet) {
     setupSpreadsheet();
     sheet = ss.getSheetByName(sheetName);
   }
@@ -551,15 +583,29 @@ function updateOrAppendUser(sheetName, u) {
   const targetId = String(u.usuarioId || '').trim().toLowerCase();
   const targetEmail = String(u.email || '').trim().toLowerCase();
 
+  const matchingRowIndices = [];
   for (let i = 1; i < values.length; i++) {
     const rowId = String(values[i][0] || '').trim().toLowerCase();
     const rowEmail = String(values[i][2] || '').trim().toLowerCase();
     if ((targetId && rowId === targetId) || (targetEmail && rowEmail === targetEmail)) {
-      sheet.getRange(i + 1, 1, 1, cleanRow.length).setValues([cleanRow]);
-      return;
+      matchingRowIndices.push(i + 1); // 1-indexed sheet row
     }
   }
+
+  if (matchingRowIndices.length > 0) {
+    // Actualizar la primera fila coincidente
+    const primaryRow = matchingRowIndices[0];
+    sheet.getRange(primaryRow, 1, 1, cleanRow.length).setValues([cleanRow]);
+
+    // Eliminar filas duplicadas restantes en orden inverso
+    for (let j = matchingRowIndices.length - 1; j >= 1; j--) {
+      sheet.deleteRow(matchingRowIndices[j]);
+    }
+    SpreadsheetApp.flush();
+    return;
+  }
   sheet.appendRow(cleanRow);
+  SpreadsheetApp.flush();
 }
 
 function replaceSheetData(sheetName, rowsData) {
@@ -574,6 +620,7 @@ function replaceSheetData(sheetName, rowsData) {
     const cleanRows = rowsData.map(function(r) { return sanitizeRow(r); });
     sheet.getRange(2, 1, cleanRows.length, cleanRows[0].length).setValues(cleanRows);
   }
+  SpreadsheetApp.flush();
 }
 
 function deleteRowsByMatchingValues(sheetName, colIndices, targetValues) {
@@ -600,6 +647,7 @@ function deleteRowsByMatchingValues(sheetName, colIndices, targetValues) {
       sheet.deleteRow(i + 1);
     }
   }
+  SpreadsheetApp.flush();
 }
 
 function deleteRowsByColumnValue(sheetName, colIndex, targetVal) {

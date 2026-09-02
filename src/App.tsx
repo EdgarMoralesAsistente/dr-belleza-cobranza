@@ -210,23 +210,26 @@ export default function App() {
     refreshData();
   };
 
-  const handleSaveUser = (u: Usuario) => {
-    StorageService.saveUsuario(u);
+  const handleSaveUser = async (u: Usuario) => {
+    const res = await StorageService.saveUsuario(u);
     refreshData();
+    return res;
   };
 
-  const handleUpdateUser = (u: Usuario) => {
-    StorageService.saveUsuario(u);
+  const handleUpdateUser = async (u: Usuario) => {
+    const res = await StorageService.saveUsuario(u);
     refreshData();
+    return res;
   };
 
-  const handleDeleteUser = (usuarioId: string) => {
-    const res = StorageService.deleteUsuario(usuarioId, currentUser);
+  const handleDeleteUser = async (usuarioId: string, email?: string) => {
+    const res = await StorageService.deleteUsuario(usuarioId, currentUser, email);
     if (!res.success) {
       alert(res.message);
-      return;
+      return res;
     }
     refreshData();
+    return res;
   };
 
   const handleUpdatePatient = (p: Paciente) => {

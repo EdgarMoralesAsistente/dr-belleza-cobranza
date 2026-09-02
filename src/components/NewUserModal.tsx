@@ -5,7 +5,7 @@ import { StorageService } from '../services/storageService';
 
 interface NewUserModalProps {
   onClose: () => void;
-  onSave: (usuario: Usuario) => void;
+  onSave: (usuario: Usuario) => void | Promise<any>;
 }
 
 export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) => {
@@ -14,11 +14,13 @@ export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) =
   const [password, setPassword] = useState('clave123');
   const availableRoles = StorageService.getUserRoles();
   const [rol, setRol] = useState<RolUsuario>(availableRoles[0] || 'Asistente');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !email.trim() || !password.trim()) return;
 
+    setIsSubmitting(true);
     const count = Math.floor(100 + Math.random() * 900);
     const newUser: Usuario = {
       usuarioId: `USR-${count}`,
@@ -30,8 +32,14 @@ export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) =
       fechaCreacion: new Date().toISOString().split('T')[0]
     };
 
-    onSave(newUser);
-    onClose();
+    try {
+      await onSave(newUser);
+      onClose();
+    } catch (err) {
+      console.error('Error al guardar usuario:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -119,9 +127,10 @@ export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) =
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-2xs transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Crear Usuario
+              {isSubmitting ? 'Guardando en Sheets...' : 'Crear Usuario'}
             </button>
           </div>
 

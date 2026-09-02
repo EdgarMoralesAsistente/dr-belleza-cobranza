@@ -495,18 +495,35 @@ export class StorageService {
       'dr.mendoza@drbelleza.com',
       'carlos.finanzas@drbelleza.com'
     ];
-    const initialCount = list.length;
-    list = list.filter(u => {
-      if (!u || !u.email) return false;
-      const emailLower = u.email.toLowerCase();
+    
+    // Deduplicar estrictamente por correo electrónico (normalizado a minúsculas)
+    const uniqueMap = new Map<string, Usuario>();
+    for (const u of list) {
+      if (!u || !u.email) continue;
+      const emailKey = u.email.toLowerCase().trim();
       const uIdUpper = String(u.usuarioId || '').trim().toUpperCase();
       const emailUpper = String(u.email || '').trim().toUpperCase();
-      if (oldDemoEmails.includes(emailLower)) return false;
-      if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) return false;
-      return true;
-    });
+      if (oldDemoEmails.includes(emailKey)) continue;
+      if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) continue;
 
-    let edgarIndex = list.findIndex(u => u && u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+      if (!uniqueMap.has(emailKey)) {
+        uniqueMap.set(emailKey, u);
+      } else {
+        // Combinar información existente si el nuevo tiene contraseña o rol más explícito
+        const existing = uniqueMap.get(emailKey)!;
+        uniqueMap.set(emailKey, {
+          ...existing,
+          ...u,
+          passwordHash: (u.passwordHash && u.passwordHash !== '123456') ? u.passwordHash : existing.passwordHash,
+          rol: u.rol || existing.rol,
+          estatus: (existing.estatus === 'Activo' || u.estatus === 'Activo') ? 'Activo' : u.estatus
+        });
+      }
+    }
+
+    list = Array.from(uniqueMap.values());
+
+    let edgarIndex = list.findIndex(u => u && u.email && u.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com');
     if (edgarIndex === -1) {
       list = [INITIAL_USUARIOS[0], ...list];
     } else {
@@ -519,9 +536,7 @@ export class StorageService {
       };
     }
 
-    if (list.length !== initialCount || !data) {
-      localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
-    }
+    localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
     return list;
   }
 
@@ -935,28 +950,28 @@ export class StorageService {
   }
 
   static async loginAsync(emailOrUser: string, password: string): Promise<{ success: boolean; user?: Usuario; message?: string }> {
-    const cleanIdentifier = emailOrUser.trim().toLowerCase();
-    const cleanPassword = password.trim();
+    const cleanIdentifier = (emailOrUser || '').trim().toLowerCase();
+    const cleanPassword = (password || '').trim();
+
+    const findUser = (list: Usuario[]) => list.find(u => u && (
+      (u.email && u.email.toLowerCase().trim() === cleanIdentifier) ||
+      (u.usuarioId && u.usuarioId.toLowerCase().trim() === cleanIdentifier) ||
+      (u.nombre && u.nombre.toLowerCase().trim() === cleanIdentifier)
+    ));
 
     // 1. Primero intentar con los usuarios en memoria local
     let users = this.getUsuarios();
-    let foundUser = users.find(u => u && (
-      (u.email && u.email.toLowerCase() === cleanIdentifier) ||
-      (u.usuarioId && u.usuarioId.toLowerCase() === cleanIdentifier) ||
-      (u.nombre && u.nombre.toLowerCase().includes(cleanIdentifier))
-    ));
+    let foundUser = findUser(users);
 
-    // 2. Si no se encuentra y hay URL de Google Apps Script configurada, sincronizar en vivo con Google Sheets
+    // 2. Si no se encuentra o la contraseña local no coincide, sincronizar en vivo con Google Sheets por si se actualizó
     const gasUrl = this.getGasUrl();
-    if (!foundUser && gasUrl) {
+    const localPasswordMatch = foundUser && (foundUser.passwordHash || '').trim() === cleanPassword;
+
+    if ((!foundUser || !localPasswordMatch) && gasUrl) {
       try {
         await this.syncFromGas();
         users = this.getUsuarios();
-        foundUser = users.find(u => u && (
-          (u.email && u.email.toLowerCase() === cleanIdentifier) ||
-          (u.usuarioId && u.usuarioId.toLowerCase() === cleanIdentifier) ||
-          (u.nombre && u.nombre.toLowerCase().includes(cleanIdentifier))
-        ));
+        foundUser = findUser(users);
       } catch (e) {
         console.warn('Error al verificar usuario en vivo con Google Sheets:', e);
       }
@@ -976,8 +991,8 @@ export class StorageService {
       };
     }
 
-    // Verificar contraseña estrictamente
-    const validPassword = foundUser.passwordHash === cleanPassword;
+    // Verificar contraseña
+    const validPassword = (foundUser.passwordHash || '').trim() === cleanPassword;
 
     if (!validPassword) {
       return {
@@ -995,14 +1010,14 @@ export class StorageService {
   }
 
   static login(emailOrUser: string, password: string): { success: boolean; user?: Usuario; message?: string } {
-    const cleanIdentifier = emailOrUser.trim().toLowerCase();
-    const cleanPassword = password.trim();
+    const cleanIdentifier = (emailOrUser || '').trim().toLowerCase();
+    const cleanPassword = (password || '').trim();
 
     const users = this.getUsuarios();
     const foundUser = users.find(u => u && (
-      (u.email && u.email.toLowerCase() === cleanIdentifier) ||
-      (u.usuarioId && u.usuarioId.toLowerCase() === cleanIdentifier) ||
-      (u.nombre && u.nombre.toLowerCase().includes(cleanIdentifier))
+      (u.email && u.email.toLowerCase().trim() === cleanIdentifier) ||
+      (u.usuarioId && u.usuarioId.toLowerCase().trim() === cleanIdentifier) ||
+      (u.nombre && u.nombre.toLowerCase().trim() === cleanIdentifier)
     ));
 
     if (!foundUser) {
@@ -1019,8 +1034,7 @@ export class StorageService {
       };
     }
 
-    // Verificar contraseña estrictamente
-    const validPassword = foundUser.passwordHash === cleanPassword;
+    const validPassword = (foundUser.passwordHash || '').trim() === cleanPassword;
 
     if (!validPassword) {
       return {
@@ -1270,6 +1284,42 @@ export class StorageService {
     if (id) current.delete(String(id).trim().toUpperCase());
     if (email) current.delete(String(email).trim().toUpperCase());
     localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
+  }
+
+  static getPendingNewUsers(): Usuario[] {
+    try {
+      const data = localStorage.getItem('drb_pending_new_usuarios_v1');
+      if (data) {
+        const arr = JSON.parse(data);
+        if (Array.isArray(arr)) return arr;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
+  static addPendingNewUser(user: Usuario): void {
+    const list = this.getPendingNewUsers();
+    const cleanEmail = (user.email || '').trim().toLowerCase();
+    const cleanId = (user.usuarioId || '').trim().toUpperCase();
+    if (!list.some(u => (u.usuarioId && u.usuarioId.trim().toUpperCase() === cleanId) || (u.email && u.email.trim().toLowerCase() === cleanEmail))) {
+      list.push(user);
+      localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(list));
+    }
+  }
+
+  static removePendingNewUser(usuarioId?: string, email?: string): void {
+    let list = this.getPendingNewUsers();
+    const cleanId = (usuarioId || '').trim().toUpperCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (cleanId) {
+      list = list.filter(u => !u.usuarioId || u.usuarioId.trim().toUpperCase() !== cleanId);
+    }
+    if (cleanEmail) {
+      list = list.filter(u => !u.email || u.email.trim().toLowerCase() !== cleanEmail);
+    }
+    localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(list));
   }
 
   // --- OPERACIONES DE PACIENTES ---
@@ -1650,48 +1700,73 @@ export class StorageService {
   }
 
   // --- OPERACIONES DE USUARIOS ---
-  static saveUsuario(usuario: Usuario): void {
+  static async saveUsuario(usuario: Usuario): Promise<{ success: boolean; message: string }> {
     if (usuario.usuarioId) this.removeDeletedUserId(usuario.usuarioId);
     if (usuario.email) this.removeDeletedUserId(undefined, usuario.email);
 
     const list = this.getUsuarios();
-    const isEdgar = usuario.email && usuario.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+    const isEdgar = usuario.email && usuario.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
     const userToSave: Usuario = isEdgar
       ? { ...usuario, rol: 'Administrador', estatus: 'Activo' }
       : usuario;
 
-    const index = list.findIndex(u => u.usuarioId === userToSave.usuarioId || (u.email && u.email.toLowerCase() === userToSave.email.toLowerCase()));
+    const index = list.findIndex(u => 
+      (u.usuarioId && u.usuarioId.trim().toUpperCase() === (userToSave.usuarioId || '').trim().toUpperCase()) || 
+      (u.email && u.email.toLowerCase().trim() === (userToSave.email || '').toLowerCase().trim())
+    );
+
     if (index !== -1) {
       list[index] = userToSave;
     } else {
       list.push(userToSave);
+      this.addPendingNewUser(userToSave);
     }
     this.saveUsuarios(list);
 
     // Si se actualizó el usuario que tiene sesión activa, actualizar la sesión
     const current = this.getAuthenticatedUser();
-    if (current && (current.usuarioId === userToSave.usuarioId || current.email.toLowerCase() === userToSave.email.toLowerCase())) {
+    if (current && (
+      (current.usuarioId && current.usuarioId.trim().toUpperCase() === (userToSave.usuarioId || '').trim().toUpperCase()) || 
+      (current.email && current.email.toLowerCase().trim() === (userToSave.email || '').toLowerCase().trim())
+    )) {
       this.setCurrentUser(userToSave);
     }
 
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
+
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: userToSave }).catch(err =>
-        console.warn('Aviso sincronización GAS (saveUsuario):', err?.message || err)
-      );
+      try {
+        await GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: userToSave });
+        // Sincronizar la lista canónica limpia completa para consistencia instantánea en Sheets
+        await GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: list });
+        this.removePendingNewUser(userToSave.usuarioId, userToSave.email);
+      } catch (err: any) {
+        console.warn('Aviso sincronización GAS (saveUsuario):', err?.message || err);
+      }
     }
+
+    return { success: true, message: 'Usuario guardado y sincronizado correctamente.' };
   }
 
-  static deleteUsuario(usuarioId: string, callerUser?: Usuario): { success: boolean; message: string } {
+  static async deleteUsuario(usuarioId: string, callerUser?: Usuario, email?: string): Promise<{ success: boolean; message: string }> {
     const list = this.getUsuarios();
-    const target = list.find(u => u.usuarioId === usuarioId);
+    const cleanId = (usuarioId || '').trim().toUpperCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    const target = list.find(u => 
+      (cleanId && u.usuarioId && u.usuarioId.trim().toUpperCase() === cleanId) || 
+      (cleanEmail && u.email && u.email.toLowerCase().trim() === cleanEmail)
+    );
+
     if (!target) {
       return { success: false, message: 'Usuario no encontrado.' };
     }
 
-    const isEdgar = target.email && target.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+    const isEdgar = target.email && target.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
     if (isEdgar) {
-      const isCallerEdgar = callerUser && callerUser.email && callerUser.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+      const isCallerEdgar = callerUser && callerUser.email && callerUser.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
       if (!isCallerEdgar) {
         return {
           success: false,
@@ -1702,18 +1777,44 @@ export class StorageService {
 
     // Registrar en lista de usuarios eliminados permanentes
     this.addDeletedUserId(target.usuarioId, target.email);
+    this.removePendingNewUser(target.usuarioId, target.email);
 
-    const updated = list.filter(u => u.usuarioId !== usuarioId && (!target.email || u.email.toLowerCase() !== target.email.toLowerCase()));
+    const updated = list.filter(u => {
+      const uIdUpper = (u.usuarioId || '').trim().toUpperCase();
+      const uEmailLower = (u.email || '').toLowerCase().trim();
+      if (cleanId && uIdUpper === cleanId) return false;
+      if (target.usuarioId && uIdUpper === target.usuarioId.trim().toUpperCase()) return false;
+      if (cleanEmail && uEmailLower === cleanEmail) return false;
+      if (target.email && uEmailLower === target.email.toLowerCase().trim()) return false;
+      return true;
+    });
+
     this.saveUsuarios(updated);
+
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
 
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
-      GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId, email: target.email }).catch(err =>
-        console.warn('Aviso sincronización GAS (deleteUsuario):', err?.message || err)
-      );
+      try {
+        // 1. Enviar delete individual para purgar filas por ID y correo
+        await GasService.sendPost(gasUrl, { 
+          action: 'deleteUsuario', 
+          usuarioId: target.usuarioId, 
+          email: target.email 
+        });
+
+        // 2. Sobrescribir la hoja Usuarios con la lista limpia canónica para garantizar cero duplicados o residuos
+        await GasService.sendPost(gasUrl, { 
+          action: 'syncUsuarios', 
+          usuarios: updated 
+        });
+      } catch (err: any) {
+        console.warn('Aviso sincronización GAS (deleteUsuario):', err?.message || err);
+      }
     }
 
-    return { success: true, message: `Usuario ${target.nombre} eliminado correctamente.` };
+    return { success: true, message: `Usuario ${target.nombre} eliminado correctamente de la aplicación y Google Sheets.` };
   }
 
   // --- SINCRONIZACIÓN COMPLETA DESDE GOOGLE SHEETS ---
@@ -1858,7 +1959,7 @@ export class StorageService {
           this.savePagos(Array.from(mergedPagosMap.values()));
         }
 
-        // 3. Usuarios: Merge no destructivo
+        // 3. Usuarios: Merge no destructivo y deduplicado por correo único
         if (data.usuarios && Array.isArray(data.usuarios)) {
           const localUsuarios = this.getUsuarios();
           let remoteUsuarios = data.usuarios.map(normalizeUsuario).filter(u => u && u.usuarioId && u.email);
@@ -1869,7 +1970,7 @@ export class StorageService {
             'carlos.finanzas@drbelleza.com'
           ];
           remoteUsuarios = remoteUsuarios.filter(u => {
-            const emailLower = u.email.toLowerCase();
+            const emailLower = u.email.toLowerCase().trim();
             const uIdUpper = String(u.usuarioId).trim().toUpperCase();
             const emailUpper = String(u.email).trim().toUpperCase();
             if (oldDemoEmails.includes(emailLower)) return false;
@@ -1881,26 +1982,41 @@ export class StorageService {
             return true;
           });
 
+          // Mapa indexado por email único en minúsculas.
+          // Google Sheets es la fuente de verdad central para los usuarios del sistema.
           const mergedUsersMap = new Map<string, Usuario>();
           remoteUsuarios.forEach(u => {
-            mergedUsersMap.set(String(u.usuarioId).trim().toUpperCase(), u);
+            const emailKey = u.email.toLowerCase().trim();
+            mergedUsersMap.set(emailKey, u);
           });
-          localUsuarios.forEach(u => {
-            if (!u || !u.usuarioId) return;
-            const uIdUpper = String(u.usuarioId).trim().toUpperCase();
+
+          // Solo preservar usuarios nuevos creados localmente que estén pendientes de subir a Google Sheets
+          const pendingUsers = this.getPendingNewUsers();
+          pendingUsers.forEach(u => {
+            if (!u || !u.email) return;
+            const emailKey = u.email.toLowerCase().trim();
+            const uIdUpper = String(u.usuarioId || '').trim().toUpperCase();
             const emailUpper = String(u.email || '').trim().toUpperCase();
             if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) return;
 
-            if (!mergedUsersMap.has(uIdUpper)) {
-              mergedUsersMap.set(uIdUpper, u);
+            if (!mergedUsersMap.has(emailKey)) {
+              mergedUsersMap.set(emailKey, u);
               if (gasUrl) {
                 GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: u }).catch(() => {});
               }
             }
           });
 
+          // Limpiar de pendientes aquellos usuarios que ya figuran en Google Sheets
+          pendingUsers.forEach(pu => {
+            const puEmail = (pu.email || '').toLowerCase().trim();
+            if (remoteUsuarios.some(ru => (ru.email || '').toLowerCase().trim() === puEmail)) {
+              this.removePendingNewUser(pu.usuarioId, pu.email);
+            }
+          });
+
           let mergedList = Array.from(mergedUsersMap.values());
-          let edgarIdx = mergedList.findIndex(u => u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com');
+          let edgarIdx = mergedList.findIndex(u => u.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com');
           if (edgarIdx === -1) {
             mergedList = [INITIAL_USUARIOS[0], ...mergedList];
           } else {
@@ -1911,6 +2027,20 @@ export class StorageService {
             };
           }
           this.saveUsuarios(mergedList);
+
+          // Si el usuario autenticado actualmente sufrió cambios remotos (rol, nombre, contraseña o estatus), sincronizar su sesión activa
+          const currentAuth = this.getAuthenticatedUser();
+          if (currentAuth && currentAuth.email) {
+            const updatedAuth = mergedList.find(u => u.email.toLowerCase().trim() === currentAuth.email.toLowerCase().trim());
+            if (updatedAuth && (
+              updatedAuth.rol !== currentAuth.rol ||
+              updatedAuth.nombre !== currentAuth.nombre ||
+              updatedAuth.passwordHash !== currentAuth.passwordHash ||
+              updatedAuth.estatus !== currentAuth.estatus
+            )) {
+              this.setCurrentUser(updatedAuth);
+            }
+          }
         }
 
         // 4. Actividades CRM: Merge no destructivo

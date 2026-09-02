@@ -12,7 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw
 } from 'lucide-react';
 import { Usuario, RolUsuario, getRolePermissions } from '../types';
 import { StorageService } from '../services/storageService';
@@ -21,8 +22,8 @@ interface UsersViewProps {
   usuarios: Usuario[];
   currentUser: Usuario;
   onNewUser: () => void;
-  onUpdateUser: (usuario: Usuario) => void;
-  onDeleteUser?: (usuarioId: string) => void;
+  onUpdateUser: (usuario: Usuario) => void | Promise<any>;
+  onDeleteUser?: (usuarioId: string, email?: string) => void | Promise<any>;
 }
 
 export const UsersView: React.FC<UsersViewProps> = ({
@@ -55,6 +56,8 @@ export const UsersView: React.FC<UsersViewProps> = ({
 
   // Estados del módulo
   const [availableRoles, setAvailableRoles] = useState<string[]>(StorageService.getUserRoles());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   
   // Estado para Edición de Usuario
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
@@ -80,7 +83,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setShowRoleManager(false);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
     if (!editNombre.trim() || !editEmail.trim() || !editPassword.trim()) return;
@@ -94,7 +97,9 @@ export const UsersView: React.FC<UsersViewProps> = ({
       estatus: editEstatus
     };
 
-    onUpdateUser(updated);
+    setActionMessage('Guardando y propagando cambios en Google Sheets...');
+    await onUpdateUser(updated);
+    setActionMessage(null);
     setEditingUser(null);
   };
 
@@ -181,9 +186,11 @@ export const UsersView: React.FC<UsersViewProps> = ({
     }
   };
 
-  const toggleUserStatus = (u: Usuario) => {
+  const toggleUserStatus = async (u: Usuario) => {
     const nuevoStatus = u.estatus === 'Activo' ? 'Inactivo' : 'Activo';
-    onUpdateUser({ ...u, estatus: nuevoStatus });
+    setActionMessage(`Actualizando estado a ${nuevoStatus}...`);
+    await onUpdateUser({ ...u, estatus: nuevoStatus });
+    setActionMessage(null);
   };
 
   return (
@@ -194,18 +201,41 @@ export const UsersView: React.FC<UsersViewProps> = ({
         <div>
           <h1 className="text-2xl sm:text-3xl font-serif italic font-bold text-teal-700 tracking-tight">Gestión de Usuarios & Roles</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Control de accesos y perfiles personalizados del sistema.
+            Control de accesos y perfiles del sistema sincronizados con Google Sheets en tiempo real.
           </p>
         </div>
 
-        <button
-          onClick={onNewUser}
-          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>+ Nuevo Usuario</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={async () => {
+              setIsSyncing(true);
+              await StorageService.syncFromGas();
+              setIsSyncing(false);
+            }}
+            disabled={isSyncing}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50 border border-slate-200"
+            title="Sincronizar usuarios con Google Sheets en tiempo real"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-teal-600' : ''}`} />
+            <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar con Sheets'}</span>
+          </button>
+
+          <button
+            onClick={onNewUser}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center justify-center space-x-2 transition-all cursor-pointer shrink-0"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Nuevo Usuario</span>
+          </button>
+        </div>
       </div>
+
+      {actionMessage && (
+        <div className="bg-teal-50 border border-teal-200 text-teal-800 px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center space-x-2 animate-in fade-in">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-600" />
+          <span>{actionMessage}</span>
+        </div>
+      )}
 
       {/* TABLA DE USUARIOS */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
@@ -275,21 +305,23 @@ export const UsersView: React.FC<UsersViewProps> = ({
 
                       {onDeleteUser && (
                         <button
-                          onClick={() => {
-                            const isEdgar = u.email && u.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
-                            const isCurrentEdgar = currentUser.email && currentUser.email.toLowerCase() === 'edgarmorales.asistente@gmail.com';
+                          onClick={async () => {
+                            const isEdgar = u.email && u.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
+                            const isCurrentEdgar = currentUser.email && currentUser.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com';
                             
                             if (isEdgar && !isCurrentEdgar) {
                               alert('El usuario Edgar Morales (Administrador Principal) está protegido y nadie más puede eliminarlo.');
                               return;
                             }
 
-                            if (confirm(`¿Estás seguro de eliminar permanentemente al usuario ${u.nombre} (${u.email})?`)) {
-                              onDeleteUser(u.usuarioId);
+                            if (confirm(`¿Estás seguro de eliminar permanentemente al usuario ${u.nombre} (${u.email})?\n\nEsta acción eliminará sus registros tanto en la aplicación como en Google Sheets de forma irreversible.`)) {
+                              setActionMessage(`Eliminando al usuario ${u.nombre} y actualizando Google Sheets...`);
+                              await onDeleteUser(u.usuarioId, u.email);
+                              setActionMessage(null);
                             }
                           }}
                           className="px-2 py-1 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer transition-colors font-semibold text-[11px]"
-                          title="Eliminar usuario"
+                          title="Eliminar usuario permanentemente"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
