@@ -15,6 +15,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Paciente, getRolePermissions, RolUsuario } from '../types';
+import { matchesSearch } from '../services/financingConfig';
 
 interface PatientsViewProps {
   pacientes: Paciente[];
@@ -41,16 +42,17 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   // Filtrado de pacientes por texto o género
   const filteredPatients = pacientes.filter(p => {
     if (!p) return false;
-    const term = (searchTerm || '').toLowerCase();
-    const matchesSearch =
-      (p.nombre || '').toLowerCase().includes(term) ||
-      (p.cedula || '').toLowerCase().includes(term) ||
-      (p.id || '').toLowerCase().includes(term) ||
-      (p.procedimiento || '').toLowerCase().includes(term);
+    const matchesQuery =
+      matchesSearch(p.nombre, searchTerm) ||
+      matchesSearch(p.cedula, searchTerm) ||
+      matchesSearch(p.id, searchTerm) ||
+      matchesSearch(p.procedimiento, searchTerm) ||
+      matchesSearch(p.telefono, searchTerm) ||
+      matchesSearch(p.correo, searchTerm);
 
     const matchesGender = selectedGender === 'Todos' || p.genero === selectedGender;
 
-    return matchesSearch && matchesGender;
+    return matchesQuery && matchesGender;
   });
 
   const handleConfirmDelete = async () => {

@@ -840,24 +840,46 @@ export class StorageService {
 
   static async initGasConfig(): Promise<string> {
     const current = this.getGasUrl();
-    if (current) return current;
 
+    // 1. Sincronizar URL de GAS con el backend si existe
     try {
       const res = await fetch('/api/gas-config');
       if (res.ok) {
         const data = await res.json();
-        if (data && data.gasUrl) {
+        if (data && data.gasUrl && !current) {
           const clean = GasService.normalizeUrl(data.gasUrl);
           this.inMemoryGasUrl = clean;
           localStorage.setItem(KEYS.GAS_URL, clean);
           window.dispatchEvent(new CustomEvent('drb-data-changed'));
-          return clean;
         }
       }
     } catch (e) {
-      // Ignorar si el endpoint no está disponible en despliegues estáticos
+      // Endpoint local no crítico
     }
-    return '';
+
+    // 2. Sincronizar catálogo quirúrgico centralizado con el backend
+    try {
+      const resCat = await fetch('/api/catalog');
+      if (resCat.ok) {
+        const catData = await resCat.json();
+        if (catData && Array.isArray(catData.catalog) && catData.catalog.length > 0) {
+          const currentLocal = this.getCatalog();
+          const map = new Map<string, ProcedureCatalogItem>();
+          currentLocal.forEach(p => map.set(p.nombre.toLowerCase().trim(), p));
+          catData.catalog.forEach((p: ProcedureCatalogItem) => {
+            if (p && p.nombre) map.set(p.nombre.toLowerCase().trim(), p);
+          });
+          const merged = Array.from(map.values());
+          localStorage.setItem(KEYS.CATALOG, JSON.stringify(merged));
+          window.dispatchEvent(new CustomEvent('catalog-updated', { detail: merged }));
+          window.dispatchEvent(new CustomEvent('drb-data-changed'));
+        }
+      }
+    } catch (e) {
+      // Endpoint local no crítico
+    }
+
+    return this.getGasUrl();
   }
 
   static saveGasUrl(url: string): void {
@@ -1987,13 +2009,13 @@ export class StorageService {
         // 7. Catálogo Quirúrgico: Integración remota desde Google Sheets y consolidación
         if (data.catalogo && Array.isArray(data.catalogo)) {
           const remoteCatalog: ProcedureCatalogItem[] = data.catalogo
-            .filter((c: any) => c && (c.Nombre || c.nombre))
+            .filter((c: any) => c && (c.Nombre || c.nombre || c.Procedimiento || c.procedimiento || c.NOMBRE || c.PROCEDIMIENTO))
             .map((c: any) => ({
               id: c.ID || c.id || `proc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-              nombre: cleanField(c.Nombre || c.nombre),
-              categoria: cleanField(c.Categoria || c.categoria, 'General'),
-              precioDefault: Number(c.Precio_Default || c.precioDefault || c.precio || 1500),
-              activo: String(c.Activo || c.activo).toLowerCase() !== 'false' && String(c.Activo || c.activo).toLowerCase() !== 'no'
+              nombre: cleanField(c.Nombre || c.nombre || c.Procedimiento || c.procedimiento || c.NOMBRE || c.PROCEDIMIENTO),
+              categoria: cleanField(c.Categoria || c.categoria || c.CATEGORIA, 'General'),
+              precioDefault: Number(c.Precio_Default || c.precioDefault || c.precio || c.Precio || c.PRECIO || 1500),
+              activo: String(c.Activo || c.activo || c.ACTIVO || 'true').toLowerCase() !== 'false' && String(c.Activo || c.activo || c.ACTIVO).toLowerCase() !== 'no'
             }));
 
           if (remoteCatalog.length > 0) {
@@ -2001,12 +2023,12 @@ export class StorageService {
             const map = new Map<string, ProcedureCatalogItem>();
             currentLocal.forEach(p => map.set(p.nombre.toLowerCase().trim(), p));
             remoteCatalog.forEach((p: ProcedureCatalogItem) => map.set(p.nombre.toLowerCase().trim(), p));
-            this.saveCatalog(Array.from(map.values()));
+            this.saveCatalog(Array.from(map.values()), false);
           }
         } else {
           // Re-consolidar catálogo local con los nuevos financiamientos y pacientes descargados
           const consolidated = this.getCatalog();
-          this.saveCatalog(consolidated);
+          this.saveCatalog(consolidated, false);
         }
 
         const nowIso = new Date().toISOString();
@@ -2163,27 +2185,42 @@ export class StorageService {
     return Array.from(mapByName.values());
   }
 
-  static saveCatalog(list: ProcedureCatalogItem[]): void {
+  static saveCatalog(list: ProcedureCatalogItem[], syncToGas: boolean = true): void {
     localStorage.setItem(KEYS.CATALOG, JSON.stringify(list));
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: list }));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
 
-    // Sincronizar asíncronamente con Google Sheets si la URL está configurada
-    const gasUrl = this.getGasUrl();
-    if (gasUrl) {
-      GasService.sendPost(gasUrl, {
-        action: 'syncCatalog',
-        catalogo: list
-      }).catch(err => {
-        console.warn('Sincronización en segundo plano de catálogo con Sheets:', err);
-      });
+    // 1. Sincronizar con el backend de la app para persistencia multi-usuario inmediata
+    try {
+      fetch('/api/catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalog: list })
+      }).catch(() => {});
+    } catch (e) {}
+
+    // 2. Sincronizar asíncronamente con Google Sheets si la URL está configurada y se solicita
+    if (syncToGas) {
+      const gasUrl = this.getGasUrl();
+      if (gasUrl) {
+        GasService.sendPost(gasUrl, {
+          action: 'syncCatalog',
+          catalogo: list
+        }).catch(err => {
+          console.warn('Sincronización en segundo plano de catálogo con Sheets:', err);
+        });
+      }
     }
   }
 
   static addCatalogItem(item: ProcedureCatalogItem): ProcedureCatalogItem[] {
     const current = this.getCatalog();
+    const cleanName = (item.nombre || '').trim();
+    if (!cleanName) return current;
+
     const existingIndex = current.findIndex(
-      p => p.id === item.id || p.nombre.trim().toLowerCase() === item.nombre.trim().toLowerCase()
+      p => p.id === item.id || p.nombre.trim().toLowerCase() === cleanName.toLowerCase()
     );
 
     let updated: ProcedureCatalogItem[];
@@ -2192,14 +2229,23 @@ export class StorageService {
       updated[existingIndex] = {
         ...updated[existingIndex],
         ...item,
-        precioDefault: Number(item.precioDefault || (item as any).precio || updated[existingIndex].precioDefault),
+        nombre: cleanName,
+        precioDefault: Number(item.precioDefault || (item as any).precio || updated[existingIndex].precioDefault || 1500),
         activo: true
       };
     } else {
-      updated = [...current, { ...item, activo: true }];
+      updated = [...current, { ...item, nombre: cleanName, activo: true }];
     }
 
-    this.saveCatalog(updated);
+    this.saveCatalog(updated, true);
+    return updated;
+  }
+
+  static deleteCatalogItem(idOrName: string): ProcedureCatalogItem[] {
+    const current = this.getCatalog();
+    const target = (idOrName || '').trim().toLowerCase();
+    const updated = current.filter(p => p.id !== idOrName && p.nombre.trim().toLowerCase() !== target);
+    this.saveCatalog(updated, true);
     return updated;
   }
 

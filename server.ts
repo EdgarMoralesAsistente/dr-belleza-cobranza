@@ -24,6 +24,7 @@ async function startServer() {
 
   // Endpoint para obtener y compartir la URL de Google Apps Script centralizada
   let sharedGasUrl = process.env.VITE_GAS_URL || process.env.GAS_URL || "";
+  let sharedCatalog: any[] = [];
 
   app.get("/api/gas-config", (req, res) => {
     res.json({
@@ -39,6 +40,31 @@ async function startServer() {
       return res.json({ success: true, gasUrl: sharedGasUrl });
     }
     return res.status(400).json({ error: "Invalid gasUrl" });
+  });
+
+  // Endpoints para Catálogo Quirúrgico Centralizado Multi-usuario
+  app.get("/api/catalog", (req, res) => {
+    res.json({
+      success: true,
+      catalog: sharedCatalog
+    });
+  });
+
+  app.post("/api/catalog", (req, res) => {
+    const { catalog } = req.body;
+    if (Array.isArray(catalog)) {
+      const map = new Map<string, any>();
+      // Preservar catálogo anterior y mezclar
+      sharedCatalog.forEach(p => {
+        if (p && p.nombre) map.set(String(p.nombre).trim().toLowerCase(), p);
+      });
+      catalog.forEach(p => {
+        if (p && p.nombre) map.set(String(p.nombre).trim().toLowerCase(), p);
+      });
+      sharedCatalog = Array.from(map.values());
+      return res.json({ success: true, catalog: sharedCatalog });
+    }
+    return res.status(400).json({ error: "Invalid catalog array" });
   });
 
   // Proxy endpoint para Google Apps Script

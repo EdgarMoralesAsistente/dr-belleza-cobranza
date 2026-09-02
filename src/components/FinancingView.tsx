@@ -13,6 +13,7 @@ import {
 import { FinanciamientoCirugia, Paciente, Pago, RolUsuario, getRolePermissions } from '../types';
 import { AddAdditionalSurgeryModal } from './AddAdditionalSurgeryModal';
 import { Scissors } from 'lucide-react';
+import { matchesSearch } from '../services/financingConfig';
 
 interface FinancingViewProps {
   financiamientos: FinanciamientoCirugia[];
@@ -51,18 +52,19 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
   const filteredPlans = financiamientos.filter(f => {
     if (!f) return false;
     const paciente = pacientes.find(p => p && p.id === f.pacienteId);
-    const pacienteNombre = (paciente?.nombre || '').toLowerCase();
-    const term = (searchTerm || '').toLowerCase();
+    const comboNames = Array.isArray(f.comboProcedimientos) ? f.comboProcedimientos.map(cp => cp.nombre).join(' ') : '';
 
-    const matchesSearch =
-      (f.procedimiento || '').toLowerCase().includes(term) ||
-      (f.planId || '').toLowerCase().includes(term) ||
-      (f.pacienteId || '').toLowerCase().includes(term) ||
-      pacienteNombre.includes(term);
+    const matchesQuery =
+      matchesSearch(f.procedimiento, searchTerm) ||
+      matchesSearch(comboNames, searchTerm) ||
+      matchesSearch(f.planId, searchTerm) ||
+      matchesSearch(f.pacienteId, searchTerm) ||
+      matchesSearch(paciente?.nombre, searchTerm) ||
+      matchesSearch(paciente?.cedula, searchTerm);
 
     const matchesStatus = selectedStatus === 'Todos' || f.estadoFinanciero === selectedStatus;
 
-    return matchesSearch && matchesStatus;
+    return matchesQuery && matchesStatus;
   });
 
   return (

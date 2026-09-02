@@ -36,7 +36,9 @@ import {
   ProcedureCatalogItem,
   CouponItem,
   FinancingPlanOption,
-  ClinicConfig
+  ClinicConfig,
+  matchesSearch,
+  normalizeSearchText
 } from '../services/financingConfig';
 
 interface SettingsViewProps {
@@ -84,9 +86,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
     };
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);
+    window.addEventListener('drb-data-changed', handleUpdate);
     return () => {
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('catalog-updated', handleUpdate);
+      window.removeEventListener('drb-data-changed', handleUpdate);
     };
   }, []);
 
@@ -135,9 +139,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
 
   const handleDeleteProcedure = (id: string) => {
     if (confirm('¿Estás seguro de eliminar este procedimiento del catálogo?')) {
-      const updated = catalog.filter(p => p.id !== id);
+      const updated = StorageService.deleteCatalogItem(id);
       setCatalog(updated);
-      StorageService.saveCatalog(updated);
       showToast('Procedimiento eliminado del catálogo');
     }
   };
@@ -532,7 +535,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
                   </button>
                 )}
                 <span className="text-[10px] text-slate-500 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md font-mono">
-                  {catalog.filter(p => p.nombre.toLowerCase().includes(searchProcCatalog.toLowerCase().trim())).length} de {catalog.length}
+                  {catalog.filter(p => matchesSearch(p.nombre, searchProcCatalog) || matchesSearch(p.categoria, searchProcCatalog)).length} de {catalog.length}
                 </span>
               </div>
             </div>
@@ -552,7 +555,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
                 <tbody className="divide-y divide-slate-100">
                   {(() => {
                     const filtered = catalog.filter(item =>
-                      item.nombre.toLowerCase().includes(searchProcCatalog.toLowerCase().trim())
+                      matchesSearch(item.nombre, searchProcCatalog) || matchesSearch(item.categoria, searchProcCatalog)
                     );
 
                     if (filtered.length === 0) {

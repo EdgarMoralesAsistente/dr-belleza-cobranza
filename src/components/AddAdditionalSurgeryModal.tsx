@@ -27,7 +27,9 @@ import {
   calculatePaymentSchedule,
   ProcedureCatalogItem,
   CouponItem,
-  PaymentScheduleItem
+  PaymentScheduleItem,
+  matchesSearch,
+  normalizeSearchText
 } from '../services/financingConfig';
 
 interface AddAdditionalSurgeryModalProps {
@@ -142,9 +144,11 @@ export const AddAdditionalSurgeryModal: React.FC<AddAdditionalSurgeryModalProps>
     };
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);
+    window.addEventListener('drb-data-changed', handleUpdate);
     return () => {
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('catalog-updated', handleUpdate);
+      window.removeEventListener('drb-data-changed', handleUpdate);
     };
   }, []);
 
@@ -153,9 +157,9 @@ export const AddAdditionalSurgeryModal: React.FC<AddAdditionalSurgeryModalProps>
 
   // Filtrado de catálogo
   const filteredCatalog = catalog.filter(item => {
-    const matchesSearch = item.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesQuery = matchesSearch(item.nombre, searchTerm) || matchesSearch(item.categoria, searchTerm);
     const matchesCategory = selectedCategory === 'Todas' || item.categoria === selectedCategory;
-    return matchesSearch && matchesCategory && item.activo !== false;
+    return matchesQuery && matchesCategory && item.activo !== false;
   });
 
   // Cálculos financieros

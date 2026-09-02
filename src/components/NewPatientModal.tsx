@@ -29,7 +29,9 @@ import {
   ProcedureCatalogItem,
   CouponItem,
   printPatientFinancingPDF,
-  calculatePaymentSchedule
+  calculatePaymentSchedule,
+  matchesSearch,
+  normalizeSearchText
 } from '../services/financingConfig';
 
 interface NewPatientModalProps {
@@ -121,9 +123,11 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
     };
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);
+    window.addEventListener('drb-data-changed', handleUpdate);
     return () => {
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('catalog-updated', handleUpdate);
+      window.removeEventListener('drb-data-changed', handleUpdate);
     };
   }, []);
 
@@ -1028,7 +1032,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                   <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Buscar procedimiento por nombre (ej. Lipo, Rino, Mamoplastia...)"
+                    placeholder="Buscar procedimiento por nombre o categoría (ej. Lipo, Rino, Mamoplastia...)"
                     value={searchProcText}
                     onChange={(e) => setSearchProcText(e.target.value)}
                     className="w-full pl-8 pr-20 py-2 bg-white border border-slate-200 rounded-xl text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all shadow-2xs"
@@ -1046,7 +1050,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                       </button>
                     )}
                     <span className="text-[10px] text-slate-400 px-1.5 py-0.5 bg-slate-50 border border-slate-100 rounded-md font-mono">
-                      {catalog.filter(p => p.nombre.toLowerCase().includes(searchProcText.toLowerCase().trim())).length}/{catalog.length}
+                      {catalog.filter(p => matchesSearch(p.nombre, searchProcText) || matchesSearch(p.categoria, searchProcText)).length}/{catalog.length}
                     </span>
                   </div>
                 </div>
@@ -1058,7 +1062,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
                 }`}>
                   {(() => {
                     const filteredList = catalog.filter(proc =>
-                      proc.nombre.toLowerCase().includes(searchProcText.toLowerCase().trim())
+                      matchesSearch(proc.nombre, searchProcText) || matchesSearch(proc.categoria, searchProcText)
                     );
 
                     if (filteredList.length === 0) {

@@ -111,6 +111,33 @@ export function getClinicConfig(): ClinicConfig {
   return DEFAULT_CLINIC_CONFIG;
 }
 
+/**
+ * Normaliza un texto removiendo acentos/tildes, caracteres especiales y espacios extra para búsquedas flexibles
+ */
+export function normalizeSearchText(text?: string | null): string {
+  if (!text) return '';
+  return String(text)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Comprueba si un texto contiene los términos de búsqueda ignorando mayúsculas, minúsculas, tildes y espacios
+ */
+export function matchesSearch(source?: string | null, query?: string | null): boolean {
+  const normQuery = normalizeSearchText(query);
+  if (!normQuery) return true;
+  const normSource = normalizeSearchText(source);
+  if (!normSource) return false;
+
+  // Búsqueda directa o por palabras individuales
+  if (normSource.includes(normQuery)) return true;
+  const words = normQuery.split(/\s+/).filter(Boolean);
+  return words.length > 1 && words.every(w => normSource.includes(w));
+}
+
 export interface PaymentScheduleItem {
   numeroCuota: number;
   fechaVencimiento: string; // YYYY-MM-DD
