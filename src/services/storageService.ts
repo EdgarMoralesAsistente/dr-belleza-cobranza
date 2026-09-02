@@ -377,6 +377,16 @@ export function calculateReintegroMetrics(
 }
 
 export class StorageService {
+  // Lista explícita de IDs de usuarios conflictivos a purgar de Google Sheets y del sistema para siempre
+  static readonly PROBLEMATIC_USER_IDS: string[] = [
+    'USR-973',
+    'USR-706',
+    'USR-617',
+    'USR-305',
+    'USR-421',
+    'USR-923'
+  ];
+
   // --- INICIALIZACIÓN ---
   static getPacientes(): Paciente[] {
     const data = localStorage.getItem(KEYS.PACIENTES);
@@ -530,14 +540,24 @@ export class StorageService {
       }
     }
     
+    // --- PURGA DE USUARIOS PROBLEMÁTICOS SOLICITADA POR EL USUARIO ---
+    // USR-973, USR-706, USR-617, USR-305, USR-421, USR-923
+    const PURGE_PROBLEMATIC_KEY = 'drb_purge_problematic_v7';
+    if (!localStorage.getItem(PURGE_PROBLEMATIC_KEY)) {
+      localStorage.setItem(PURGE_PROBLEMATIC_KEY, 'true');
+      this.purgeProblematicUsersFromSheetsAndLocal().catch(() => {});
+    }
+
     // Deduplicar estrictamente por correo electrónico (normalizado a minúsculas)
     const uniqueMap = new Map<string, Usuario>();
+    const problematicUpper = this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase());
     for (const u of list) {
       if (!u || !u.email) continue;
       const emailKey = u.email.toLowerCase().trim();
       const uIdUpper = String(u.usuarioId || '').trim().toUpperCase();
       const emailUpper = String(u.email || '').trim().toUpperCase();
       if (oldDemoEmails.includes(emailKey)) continue;
+      if (problematicUpper.includes(uIdUpper)) continue;
       if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) continue;
 
       if (!uniqueMap.has(emailKey)) {
@@ -941,7 +961,12 @@ export class StorageService {
       // Endpoint local no crítico
     }
 
-    return this.getGasUrl();
+    const activeGasUrl = this.getGasUrl();
+    if (activeGasUrl) {
+      this.purgeProblematicUsersFromSheetsAndLocal(activeGasUrl).catch(() => {});
+    }
+
+    return activeGasUrl;
   }
 
   static saveGasUrl(url: string): void {
@@ -950,6 +975,10 @@ export class StorageService {
     localStorage.setItem(KEYS.GAS_URL, clean);
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('drb-data-changed'));
+
+    if (clean) {
+      this.purgeProblematicUsersFromSheetsAndLocal(clean).catch(() => {});
+    }
 
     // Intentar sincronizar URL con el backend para que otros usuarios la obtengan
     try {
@@ -1305,18 +1334,19 @@ export class StorageService {
 
   // --- REGISTRO DE USUARIOS ELIMINADOS (TOMBSTONES) ---
   static getDeletedUserIds(): Set<string> {
+    const set = new Set<string>(this.PROBLEMATIC_USER_IDS.map(id => id.toUpperCase()));
     try {
       const data = localStorage.getItem('drb_deleted_usuarios_v1');
       if (data) {
         const arr = JSON.parse(data);
         if (Array.isArray(arr)) {
-          return new Set(arr.map((id: string) => String(id).trim().toUpperCase()));
+          arr.forEach((id: string) => set.add(String(id).trim().toUpperCase()));
         }
       }
     } catch (e) {
       // ignore
     }
-    return new Set<string>();
+    return set;
   }
 
   static addDeletedUserId(id?: string, email?: string): void {
@@ -1328,17 +1358,27 @@ export class StorageService {
 
   static removeDeletedUserId(id?: string, email?: string): void {
     const current = this.getDeletedUserIds();
-    if (id) current.delete(String(id).trim().toUpperCase());
+    const problematicUpper = this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase());
+    if (id && !problematicUpper.includes(id.trim().toUpperCase())) {
+      current.delete(String(id).trim().toUpperCase());
+    }
     if (email) current.delete(String(email).trim().toUpperCase());
     localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
   }
 
   static getPendingNewUsers(): Usuario[] {
+    const deleted = this.getDeletedUserIds();
     try {
       const data = localStorage.getItem('drb_pending_new_usuarios_v1');
       if (data) {
         const arr = JSON.parse(data);
-        if (Array.isArray(arr)) return arr;
+        if (Array.isArray(arr)) {
+          return arr.filter(u => {
+            const uIdUpper = String(u?.usuarioId || '').trim().toUpperCase();
+            const emailUpper = String(u?.email || '').trim().toUpperCase();
+            return !deleted.has(uIdUpper) && !deleted.has(emailUpper);
+          });
+        }
       }
     } catch {
       // ignore
@@ -1347,9 +1387,10 @@ export class StorageService {
   }
 
   static addPendingNewUser(user: Usuario): void {
+    const cleanId = (user.usuarioId || '').trim().toUpperCase();
+    if (this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(cleanId)) return;
     const list = this.getPendingNewUsers();
     const cleanEmail = (user.email || '').trim().toLowerCase();
-    const cleanId = (user.usuarioId || '').trim().toUpperCase();
     if (!list.some(u => (u.usuarioId && u.usuarioId.trim().toUpperCase() === cleanId) || (u.email && u.email.trim().toLowerCase() === cleanEmail))) {
       list.push(user);
       localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(list));
@@ -1367,6 +1408,91 @@ export class StorageService {
       list = list.filter(u => !u.email || u.email.trim().toLowerCase() !== cleanEmail);
     }
     localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(list));
+  }
+
+  // --- PURGA EXPLÍCITA Y DEFINITIVA DE USUARIOS CONFLICTIVOS EN GOOGLE SHEETS Y LOCAL ---
+  static async purgeProblematicUsersFromSheetsAndLocal(targetGasUrl?: string): Promise<{ success: boolean; message: string }> {
+    const gasUrl = targetGasUrl || this.getGasUrl();
+
+    // 1. Añadir a lista de eliminados permanentes (tombstones)
+    this.PROBLEMATIC_USER_IDS.forEach(id => {
+      this.addDeletedUserId(id);
+    });
+
+    // 2. Limpiar del almacenamiento local (KEYS.USUARIOS y drb_pending_new_usuarios_v1)
+    try {
+      const rawUsers = localStorage.getItem(KEYS.USUARIOS);
+      if (rawUsers) {
+        const parsed = JSON.parse(rawUsers);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((u: any) => {
+            const uId = String(u.usuarioId || u.Usuario_ID || '').trim().toUpperCase();
+            return !this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(uId);
+          });
+          localStorage.setItem(KEYS.USUARIOS, JSON.stringify(filtered));
+        }
+      }
+
+      const rawPending = localStorage.getItem('drb_pending_new_usuarios_v1');
+      if (rawPending) {
+        const parsed = JSON.parse(rawPending);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((u: any) => {
+            const uId = String(u.usuarioId || u.Usuario_ID || '').trim().toUpperCase();
+            return !this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(uId);
+          });
+          localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {
+      console.warn('Error limpiando almacenamiento local de usuarios conflictivos:', e);
+    }
+
+    // 3. Enviar orden directa e imperativa a Google Sheets
+    if (gasUrl) {
+      try {
+        // Enviar orden de eliminación directa por cada ID conflictivo individualmente
+        await Promise.allSettled(
+          this.PROBLEMATIC_USER_IDS.map(id =>
+            GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: id })
+          )
+        );
+
+        // Enviar orden colectiva en lote para asegurar que cualquier fila sea borrada
+        await GasService.sendPost(gasUrl, {
+          action: 'deleteUsuario',
+          usuarioIds: this.PROBLEMATIC_USER_IDS
+        }).catch(() => {});
+
+        // Obtener lista canónica de usuarios autorizados (sin los eliminados) y sincronizarla en la hoja Usuarios
+        const cleanUsers = this.getUsuarios();
+        await GasService.sendPost(gasUrl, {
+          action: 'syncUsuarios',
+          usuarios: cleanUsers
+        });
+
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('drb-data-changed'));
+
+        return {
+          success: true,
+          message: `Orden ejecutada: los usuarios (${this.PROBLEMATIC_USER_IDS.join(', ')}) fueron borrados de Google Sheets y del sistema permanentemente.`
+        };
+      } catch (err: any) {
+        console.warn('Error al enviar purga a Google Sheets:', err);
+        return {
+          success: false,
+          message: `Error comunicando con Google Sheets: ${err?.message || err}`
+        };
+      }
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('drb-data-changed'));
+    return {
+      success: true,
+      message: `Usuarios (${this.PROBLEMATIC_USER_IDS.join(', ')}) eliminados localmente. Conéctate a Google Sheets para purgar la nube.`
+    };
   }
 
   // --- OPERACIONES DE PACIENTES ---
@@ -1748,6 +1874,11 @@ export class StorageService {
 
   // --- OPERACIONES DE USUARIOS ---
   static async saveUsuario(usuario: Usuario): Promise<{ success: boolean; message: string }> {
+    const uIdUpper = String(usuario.usuarioId || '').trim().toUpperCase();
+    if (this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(uIdUpper)) {
+      return { success: false, message: `El usuario con ID ${usuario.usuarioId} está marcado para eliminación definitiva y no puede ser creado con ese ID.` };
+    }
+
     if (usuario.usuarioId) this.removeDeletedUserId(usuario.usuarioId);
     if (usuario.email) this.removeDeletedUserId(undefined, usuario.email);
 
@@ -2029,11 +2160,21 @@ export class StorageService {
             'mendoza@drbelleza.com',
             'valeria@drbelleza.com'
           ];
+          const problematicUpper = this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase());
+          let foundProblematicInRemote = false;
+
           remoteUsuarios = remoteUsuarios.filter(u => {
             const emailLower = u.email.toLowerCase().trim();
             const uIdUpper = String(u.usuarioId).trim().toUpperCase();
             const emailUpper = String(u.email).trim().toUpperCase();
             if (oldDemoEmails.includes(emailLower)) return false;
+            if (problematicUpper.includes(uIdUpper)) {
+              foundProblematicInRemote = true;
+              if (gasUrl) {
+                GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: u.usuarioId }).catch(() => {});
+              }
+              return false;
+            }
             const isDeleted = deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper);
             if (isDeleted && gasUrl) {
               GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: u.usuarioId, email: u.email }).catch(() => {});
@@ -2099,9 +2240,10 @@ export class StorageService {
           }
           this.saveUsuarios(mergedList);
 
-          // Si Google Sheets contenía usuarios eliminados o de prueba, limpiar la hoja en segundo plano
-          const hadDeletedOrLegacyInRemote = data.usuarios.length !== remoteUsuarios.length;
+          // Si Google Sheets contenía usuarios eliminados, problemáticos o de prueba, limpiar la hoja inmediatamente
+          const hadDeletedOrLegacyInRemote = data.usuarios.length !== remoteUsuarios.length || foundProblematicInRemote;
           if (hadDeletedOrLegacyInRemote && gasUrl) {
+            GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioIds: this.PROBLEMATIC_USER_IDS }).catch(() => {});
             GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: mergedList }).catch(() => {});
           }
 

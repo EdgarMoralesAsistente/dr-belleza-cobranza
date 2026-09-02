@@ -239,10 +239,12 @@ function doPost(e) {
     if (action === 'deleteUsuario') {
       const uId = String(contents.usuarioId || '').trim();
       const email = String(contents.email || '').trim();
-      const searchTargets = [uId, email].filter(function(t) { return t.length > 0; });
+      const uIds = Array.isArray(contents.usuarioIds) ? contents.usuarioIds : [];
+      const emails = Array.isArray(contents.emails) ? contents.emails : [];
+      const searchTargets = [uId, email].concat(uIds).concat(emails).filter(function(t) { return t && String(t).trim().length > 0; });
       deleteRowsByMatchingValues(SHEETS.USUARIOS, [0, 2], searchTargets);
       SpreadsheetApp.flush();
-      return responseJSON({ success: true, message: 'Usuario eliminado correctamente de Google Sheets.' });
+      return responseJSON({ success: true, message: 'Usuario(s) eliminado(s) correctamente de Google Sheets.' });
     }
 
     if (action === 'syncUsuarios') {
@@ -467,7 +469,9 @@ function getSheetData(sheetName) {
   if (values.length <= 1) return [];
   
   const headers = values[0];
-  const rows = values.slice(1);
+  const rows = values.slice(1).filter(function(row) {
+    return row.some(function(cell) { return String(cell !== undefined && cell !== null ? cell : '').trim().length > 0; });
+  });
 
   return rows.map(function(row) {
     const obj = {};
@@ -619,6 +623,15 @@ function replaceSheetData(sheetName, rowsData) {
   if (rowsData && rowsData.length > 0) {
     const cleanRows = rowsData.map(function(r) { return sanitizeRow(r); });
     sheet.getRange(2, 1, cleanRows.length, cleanRows[0].length).setValues(cleanRows);
+  }
+  const currentLastRow = sheet.getLastRow();
+  const targetLastRow = (rowsData && rowsData.length > 0) ? (1 + rowsData.length) : 1;
+  if (currentLastRow > targetLastRow) {
+    try {
+      sheet.deleteRows(targetLastRow + 1, currentLastRow - targetLastRow);
+    } catch (e) {
+      // Ignorar si no se pueden borrar filas estructurales
+    }
   }
   SpreadsheetApp.flush();
 }

@@ -208,6 +208,26 @@ export const UsersView: React.FC<UsersViewProps> = ({
         <div className="flex items-center space-x-2">
           <button
             onClick={async () => {
+              if (window.confirm('¿Deseas enviar la orden de purga directa a Google Sheets para eliminar permanentemente los IDs conflictivos (USR-973, USR-706, USR-617, USR-305, USR-421, USR-923) y resincronizar?')) {
+                setIsSyncing(true);
+                setActionMessage('Enviando orden directa a Google Sheets para purgar los usuarios conflictivos...');
+                const res = await StorageService.purgeProblematicUsersFromSheetsAndLocal();
+                await StorageService.syncFromGas();
+                setIsSyncing(false);
+                setActionMessage(res.message);
+                setTimeout(() => setActionMessage(null), 5000);
+              }
+            }}
+            disabled={isSyncing}
+            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50 border border-rose-200"
+            title="Purgar IDs conflictivos (USR-973, USR-706, USR-617, USR-305, USR-421, USR-923) en Google Sheets"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>Purgar IDs en Sheets</span>
+          </button>
+
+          <button
+            onClick={async () => {
               setIsSyncing(true);
               await StorageService.syncFromGas();
               setIsSyncing(false);
