@@ -1208,8 +1208,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, userRol
               </div>
             </div>
 
-            {/* BOTONES MANTENIMIENTO: DATOS DEMO Y VACIAR SISTEMA VIRGEN */}
+            {/* BOTONES MANTENIMIENTO: DEPURAR GHOSTS, DATOS DEMO Y VACIAR SISTEMA VIRGEN */}
             <div className="pt-4 border-t border-slate-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-amber-50/60 border border-amber-200 rounded-xl">
+                <div>
+                  <span className="text-xs font-bold text-amber-900 block flex items-center space-x-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Depurar Registros Vacíos y Fantasmas (Cédula V-00000000)</span>
+                  </span>
+                  <span className="text-[11px] text-slate-600">Elimina de forma segura y permanente los registros sin cédula o con "V-00000000" y todos sus datos asociados en Financiamientos, Actividades y Pagos, tanto en la Web App como en Google Sheets.</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm('¿Deseas ejecutar la depuración de registros sin cédula y pacientes fantasma en todas las tablas?')) {
+                      const res = await StorageService.purgeGhostRecordsFromAllTables();
+                      alert(res.message);
+                      window.location.reload();
+                    }
+                  }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer shrink-0"
+                >
+                  Depurar Registros Vacíos
+                </button>
+              </div>
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-rose-50/50 border border-rose-100 rounded-xl">
                 <div>
                   <span className="text-xs font-bold text-rose-900 block flex items-center space-x-1.5">

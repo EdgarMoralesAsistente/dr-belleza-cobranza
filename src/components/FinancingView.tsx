@@ -182,6 +182,22 @@ export const FinancingView: React.FC<FinancingViewProps> = ({
                   </span>
                 </div>
 
+                {/* DESCUENTO / CUPÓN APLICADO (SI APLICA) */}
+                {plan.descuentoMonto !== undefined && plan.descuentoMonto > 0 && (
+                  <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-50/80 border border-emerald-200/80 rounded-md text-[11px] text-emerald-800">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Cupón: <strong>{plan.cuponCodigo && plan.cuponCodigo !== 'NINGUNO' ? plan.cuponCodigo : 'Promocional'}</strong>
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      -${plan.descuentoMonto.toLocaleString()} USD
+                      {plan.costoSubtotal !== undefined && plan.costoSubtotal > plan.costoTotalCirugia && (
+                        <span className="text-slate-400 font-normal line-through ml-1.5">${plan.costoSubtotal.toLocaleString()}</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+
                 {/* MÉTRICAS FINANCIERAS */}
                 <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-lg text-center text-xs">
                   <div>

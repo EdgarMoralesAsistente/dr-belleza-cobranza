@@ -108,6 +108,7 @@ export const NewFinancingPlanModal: React.FC<NewFinancingPlanModalProps> = ({
   useEffect(() => {
     const handleUpdate = () => {
       setCatalog(getActiveCatalog());
+      setCouponsList(getActiveCoupons());
     };
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);

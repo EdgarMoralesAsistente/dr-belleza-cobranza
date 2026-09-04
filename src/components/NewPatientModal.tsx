@@ -120,6 +120,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({ onClose, onSav
   useEffect(() => {
     const handleUpdate = () => {
       setCatalog(getActiveCatalog());
+      setCouponsList(getActiveCoupons());
     };
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('catalog-updated', handleUpdate);

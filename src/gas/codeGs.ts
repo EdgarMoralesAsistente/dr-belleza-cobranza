@@ -86,10 +86,12 @@ function setupSpreadsheet() {
   if (!sheetFin) {
     sheetFin = ss.insertSheet(SHEETS.FINANCIAMIENTO);
   }
-  sheetFin.getRange("A1:J1").setValues([[
+  sheetFin.getRange("A1:Q1").setValues([[
     "Plan_ID", "Paciente_ID", "Procedimiento", "Costo_Total_Cirugia",
     "Cuotas_Totales", "Monto_Abonado", "Saldo_Pendiente", "Estado_Financiero",
-    "Fecha_Inicio", "Fecha_Estimada_Cirugia"
+    "Fecha_Inicio", "Fecha_Estimada_Cirugia",
+    "Costo_Subtotal", "Cupon_Codigo", "Descuento_Monto", "Tipo_Pago",
+    "Plan_Opcion_Id", "Monto_Cuota_Mensual", "Combo_Procedimientos"
   ]]).setFontWeight("bold").setBackground("#e2e8f0");
 
   // 6. Pestaña Reintegros_Financiamiento
@@ -190,6 +192,12 @@ function doPost(e) {
 
     if (action === 'addPaciente' || action === 'updatePaciente') {
       const p = contents.paciente;
+      const ced = String(p && (p.cedula || p.CEDULA) || '').trim().toUpperCase();
+      const nom = String(p && (p.nombre || p.NOMBRE) || '').trim().toLowerCase();
+      const digits = ced.replace(/[^0-9]/g, '');
+      if (!ced || ced === 'V-00000000' || ced === 'V- 00000000' || digits === '00000000' || digits === '0' || nom === 'paciente sin nombre' || !nom) {
+        return responseJSON({ success: false, message: 'Registro bloqueado: Paciente sin cédula válida o cédula fantasma (V-00000000).' });
+      }
       updateOrAppendPaciente(p);
       return responseJSON({ success: true, message: 'Paciente guardado y sincronizado exitosamente' });
     }
@@ -201,11 +209,7 @@ function doPost(e) {
       // Si incluye actualización de financiamiento
       if (contents.financiamiento) {
         const fin = contents.financiamiento;
-        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
-          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
-          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
-          fin.fechaInicio, fin.fechaEstimadaCirugia
-        ]);
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, formatFinanciamientoRow(fin));
       }
 
       return responseJSON({ success: true, message: 'Pago registrado y saldo actualizado' });
@@ -269,12 +273,22 @@ function doPost(e) {
 
     if (action === 'saveFinanciamiento') {
       const fin = contents.financiamiento;
-      updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
-        fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
-        fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
-        fin.fechaInicio, fin.fechaEstimadaCirugia
-      ]);
+      const pId = String(fin && (fin.pacienteId || fin.Paciente_ID) || '').trim().toUpperCase();
+      if (!pId || pId === 'PAC-000') {
+        return responseJSON({ success: false, message: 'Registro bloqueado: Financiamiento no vinculado a un paciente válido.' });
+      }
+      updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, formatFinanciamientoRow(fin));
       return responseJSON({ success: true, message: 'Plan de financiamiento guardado' });
+    }
+
+    if (action === 'purgeGhostRecords') {
+      deleteRowsByMatchingValues(SHEETS.PACIENTES, [0, 1], ['PAC-000', 'V-00000000', 'V- 00000000']);
+      deleteRowsByMatchingValues(SHEETS.PAGOS, [2], ['PAC-000', 'V-00000000', 'V- 00000000']);
+      deleteRowsByMatchingValues(SHEETS.ACTIVIDADES, [1], ['PAC-000', 'V-00000000', 'V- 00000000']);
+      deleteRowsByMatchingValues(SHEETS.FINANCIAMIENTO, [1], ['PAC-000', 'V-00000000', 'V- 00000000']);
+      deleteRowsByMatchingValues(SHEETS.REINTEGROS, [2], ['PAC-000', 'V-00000000', 'V- 00000000']);
+      SpreadsheetApp.flush();
+      return responseJSON({ success: true, message: 'Purga de registros fantasmas ejecutada con éxito en Google Sheets.' });
     }
 
     if (action === 'deletePaciente') {
@@ -301,11 +315,7 @@ function doPost(e) {
 
       if (contents.financiamiento) {
         const fin = contents.financiamiento;
-        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
-          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
-          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
-          fin.fechaInicio, fin.fechaEstimadaCirugia
-        ]);
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, formatFinanciamientoRow(fin));
       }
 
       return responseJSON({ success: true, message: 'Solicitud de reintegro procesada exitosamente' });
@@ -333,11 +343,7 @@ function doPost(e) {
 
       if (contents.financiamiento) {
         const fin = contents.financiamiento;
-        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, [
-          fin.planId, fin.pacienteId, fin.procedimiento, fin.costoTotalCirugia,
-          fin.cuotasTotales, fin.montoAbonado, fin.saldoPendiente, fin.estadoFinanciero,
-          fin.fechaInicio, fin.fechaEstimadaCirugia
-        ]);
+        updateRowById(SHEETS.FINANCIAMIENTO, 0, fin.planId, formatFinanciamientoRow(fin));
       }
 
       return responseJSON({ success: true, message: 'Pago de reintegro registrado correctamente' });
@@ -376,11 +382,9 @@ function doPost(e) {
       }
 
       if (financiamientos && Array.isArray(financiamientos)) {
-        replaceSheetData(SHEETS.FINANCIAMIENTO, financiamientos.map(f => [
-          f.planId, f.pacienteId, f.procedimiento, f.costoTotalCirugia,
-          f.cuotasTotales, f.montoAbonado, f.saldoPendiente, f.estadoFinanciero,
-          f.fechaInicio, f.fechaEstimadaCirugia
-        ]));
+        replaceSheetData(SHEETS.FINANCIAMIENTO, financiamientos.map(function(f) {
+          return formatFinanciamientoRow(f);
+        }));
       }
 
       if (reintegros && Array.isArray(reintegros)) {
@@ -441,6 +445,61 @@ function sanitizeRow(rowArray) {
   return rowArray.map(function(v) { return sanitizeVal(v); });
 }
 
+var FINANCIAMIENTO_HEADERS = [
+  "Plan_ID", "Paciente_ID", "Procedimiento", "Costo_Total_Cirugia",
+  "Cuotas_Totales", "Monto_Abonado", "Saldo_Pendiente", "Estado_Financiero",
+  "Fecha_Inicio", "Fecha_Estimada_Cirugia",
+  "Costo_Subtotal", "Cupon_Codigo", "Descuento_Monto", "Tipo_Pago",
+  "Plan_Opcion_Id", "Monto_Cuota_Mensual", "Combo_Procedimientos"
+];
+
+function ensureFinanciamientoHeaders(sheet) {
+  if (!sheet) return;
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < FINANCIAMIENTO_HEADERS.length) {
+    sheet.getRange(1, 1, 1, FINANCIAMIENTO_HEADERS.length).setValues([FINANCIAMIENTO_HEADERS]).setFontWeight("bold").setBackground("#e2e8f0");
+  }
+}
+
+function formatFinanciamientoRow(fin) {
+  if (!fin) return [];
+  var comboStr = fin.comboProcedimientos ? (typeof fin.comboProcedimientos === 'string' ? fin.comboProcedimientos : JSON.stringify(fin.comboProcedimientos)) : (fin.Combo_Procedimientos || '');
+  var total = Number(fin.costoTotalCirugia || fin.Costo_Total_Cirugia || fin.costo_total_cirugia || 0);
+  var desc = Number(fin.descuentoMonto || fin.Descuento_Monto || fin.descuento_monto || 0);
+  var subtotal = Number(fin.costoSubtotal || fin.Costo_Subtotal || fin.costo_subtotal || 0);
+  if (subtotal === 0 && total > 0) {
+    subtotal = total + desc;
+  }
+  if (desc === 0 && subtotal > total && total > 0) {
+    desc = subtotal - total;
+  }
+  var cupon = String(fin.cuponCodigo || fin.Cupon_Codigo || fin.cupon_codigo || (desc > 0 ? 'DESCUENTO_APLICADO' : 'NINGUNO'));
+  var cuotas = Number(fin.cuotasTotales || fin.Cuotas_Totales || fin.cuotas_totales || 1);
+  var abonado = Number(fin.montoAbonado || fin.Monto_Abonado || fin.monto_abonado || 0);
+  var saldo = Number(fin.saldoPendiente || fin.Saldo_Pendiente || fin.saldo_pendiente || Math.max(0, total - abonado));
+  var cuotaMensual = Number(fin.montoCuotaMensual || fin.Monto_Cuota_Mensual || (cuotas > 0 ? Math.round(saldo / cuotas) : 0));
+
+  return [
+    fin.planId || fin.Plan_ID || '',
+    fin.pacienteId || fin.Paciente_ID || '',
+    fin.procedimiento || fin.Procedimiento || '',
+    total,
+    cuotas,
+    abonado,
+    saldo,
+    fin.estadoFinanciero || fin.Estado_Financiero || 'Al día',
+    fin.fechaInicio || fin.Fecha_Inicio || '',
+    fin.fechaEstimadaCirugia || fin.Fecha_Estimada_Cirugia || '',
+    subtotal,
+    cupon,
+    desc,
+    fin.tipoPago || fin.Tipo_Pago || 'Financiamiento',
+    fin.planOpcionId || fin.Plan_Opcion_Id || '',
+    cuotaMensual,
+    comboStr
+  ];
+}
+
 function getOrCreateSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
@@ -457,6 +516,9 @@ function getOrCreateSheet(sheetName) {
   if (!sheet) {
     setupSpreadsheet();
     sheet = ss.getSheetByName(sheetName);
+  }
+  if (sheet && (sheetName === SHEETS.FINANCIAMIENTO || (sheet.getName && sheet.getName().trim().toLowerCase() === SHEETS.FINANCIAMIENTO.toLowerCase()))) {
+    ensureFinanciamientoHeaders(sheet);
   }
   return sheet;
 }

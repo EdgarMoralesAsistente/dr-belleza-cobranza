@@ -23,7 +23,7 @@ async function startServer() {
   });
 
   // Endpoint para obtener y compartir la URL de Google Apps Script centralizada
-  let sharedGasUrl = process.env.VITE_GAS_URL || process.env.GAS_URL || "";
+  let sharedGasUrl = process.env.VITE_GAS_URL || process.env.GAS_URL || "https://script.google.com/macros/s/AKfycbzEzjHBbjl2rXUO0yuhV3qL7bbHbAJJB-XKeJoMNDdeUeWfU0M6vB4EdEGCVjD-lDb61Q/exec";
   let sharedCatalog: any[] = [];
 
   app.get("/api/gas-config", (req, res) => {
@@ -140,6 +140,48 @@ async function startServer() {
       });
     }
 
+    // 3. Bloquear registros de pacientes fantasmas (V-00000000 o sin cédula o paciente sin nombre)
+    if ((modifiedPayload.action === "addPaciente" || modifiedPayload.action === "updatePaciente") && modifiedPayload.paciente) {
+      const pCed = String(modifiedPayload.paciente.cedula || "").trim().toUpperCase();
+      const pNom = String(modifiedPayload.paciente.nombre || "").trim().toLowerCase();
+      const pId = String(modifiedPayload.paciente.id || "").trim().toUpperCase();
+      const digitsOnly = pCed.replace(/[^0-9]/g, "");
+      if (!pCed || pCed === "V-00000000" || pCed === "V- 00000000" || digitsOnly === "00000000" || digitsOnly === "0" || pNom === "paciente sin nombre" || !pNom || pId === "PAC-000") {
+        console.warn("gas-proxy: Bloqueado intento de guardar paciente fantasma o sin cédula válida:", pCed, pNom);
+        return res.json({ success: true, message: "Registro fantasma bloqueado por validación de seguridad." });
+      }
+    }
+
+    // 4. Bloquear financiamientos asociados a pacientes fantasmas (PAC-000)
+    if (modifiedPayload.action === "saveFinanciamiento" && modifiedPayload.financiamiento) {
+      const pId = String(modifiedPayload.financiamiento.pacienteId || modifiedPayload.financiamiento.Paciente_ID || "").trim().toUpperCase();
+      if (!pId || pId === "PAC-000") {
+        console.warn("gas-proxy: Bloqueado intento de guardar financiamiento asociado a paciente fantasma PAC-000");
+        return res.json({ success: true, message: "Financiamiento fantasma bloqueado por validación de seguridad." });
+      }
+    }
+
+    // 5. Si se envía syncFullDatabase o listas completas, purgar pacientes y financiamientos fantasmas
+    if (Array.isArray(modifiedPayload.pacientes)) {
+      modifiedPayload.pacientes = modifiedPayload.pacientes.filter((p: any) => {
+        const pCed = String(p.cedula || p.CEDULA || "").trim().toUpperCase();
+        const pNom = String(p.nombre || p.NOMBRE || "").trim().toLowerCase();
+        const pId = String(p.id || p.ID || "").trim().toUpperCase();
+        const digitsOnly = pCed.replace(/[^0-9]/g, "");
+        if (!pCed || pCed === "V-00000000" || pCed === "V- 00000000" || digitsOnly === "00000000" || digitsOnly === "0" || pNom === "paciente sin nombre" || !pNom || pId === "PAC-000") {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    if (Array.isArray(modifiedPayload.financiamientos)) {
+      modifiedPayload.financiamientos = modifiedPayload.financiamientos.filter((f: any) => {
+        const pId = String(f.pacienteId || f.Paciente_ID || "").trim().toUpperCase();
+        return Boolean(pId && pId !== "PAC-000");
+      });
+    }
+
     try {
       const response = await fetch(gasUrl, {
         method: "POST",
@@ -236,6 +278,72 @@ async function startServer() {
         message: "Google Sheets purgado exitosamente.",
         remainingUsers: cleanUsers,
         sheetResult: postData
+      });
+    } catch (err: any) {
+      return res.status(200).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  // Endpoint para purga de registros fantasmas (V-00000000 y PAC-000) en Google Sheets
+  app.post("/api/purge-ghosts", async (req, res) => {
+    const gasUrl = sharedGasUrl || process.env.VITE_GAS_URL || process.env.GAS_URL || "";
+    if (!gasUrl) {
+      return res.status(400).json({ error: "GAS URL no configurada" });
+    }
+
+    try {
+      let maxPasses = 5;
+      let pass = 0;
+      let lastGhostsCount = 0;
+      let lastGhostFinCount = 0;
+
+      while (pass < maxPasses) {
+        pass++;
+        // 1. Eliminar pacientes V-00000000
+        await fetch(gasUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "deletePaciente", cedula: "V-00000000" }),
+          redirect: "follow"
+        });
+
+        // 2. Eliminar financiamientos PAC-000
+        await fetch(gasUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "deletePaciente", pacienteId: "PAC-000" }),
+          redirect: "follow"
+        });
+
+        // 3. Verificar estado actual
+        const checkRes = await fetch(`${gasUrl}?action=getAllData`, { redirect: "follow" });
+        const checkData = await checkRes.json();
+        const ghosts = (checkData.pacientes || []).filter((p: any) => {
+          const ced = String(p.cedula || p.CEDULA || "").trim().toUpperCase();
+          const nom = String(p.nombre || p.NOMBRE || "").trim().toLowerCase();
+          const pId = String(p.id || p.ID || "").trim().toUpperCase();
+          const digits = ced.replace(/[^0-9]/g, "");
+          return !ced || ced === "V-00000000" || ced === "V- 00000000" || digits === "00000000" || digits === "0" || nom === "paciente sin nombre" || !nom || pId === "PAC-000";
+        });
+        const ghostFin = (checkData.financiamientos || []).filter((f: any) => {
+          const pId = String(f.Paciente_ID || f.pacienteId || "").trim().toUpperCase();
+          return !pId || pId === "PAC-000";
+        });
+
+        lastGhostsCount = ghosts.length;
+        lastGhostFinCount = ghostFin.length;
+
+        if (lastGhostsCount === 0 && lastGhostFinCount === 0) {
+          break;
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: "Purga de registros fantasmas completada con éxito.",
+        ghostsRemaining: lastGhostsCount,
+        ghostFinRemaining: lastGhostFinCount,
+        passesExecuted: pass
       });
     } catch (err: any) {
       return res.status(200).json({ success: false, error: err?.message || String(err) });

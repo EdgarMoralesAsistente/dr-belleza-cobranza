@@ -100,16 +100,31 @@ export function cleanPhoneField(rawPhone: any, id?: string, cedula?: string): st
   return cleaned;
 }
 
+export function isGhostCedula(rawCed: any): boolean {
+  if (!rawCed) return true;
+  const str = String(rawCed).trim().toUpperCase();
+  if (!str || str === 'V-00000000' || str === 'V- 00000000' || str === '00000000' || str === '0') return true;
+  const digitsOnly = str.replace(/[^0-9]/g, '');
+  if (digitsOnly === '00000000' || digitsOnly === '0' || digitsOnly === '') return true;
+  return false;
+}
+
+export function isGhostNombre(rawNom: any): boolean {
+  if (!rawNom) return true;
+  const str = String(rawNom).trim().toLowerCase();
+  return !str || str === 'paciente sin nombre' || str.startsWith('paciente sin');
+}
+
 export function isValidPaciente(p: any): boolean {
   if (!p || typeof p !== 'object') return false;
   const nombre = cleanField(p.nombre || p.NOMBRE || p.Nombre, '');
   const cedula = cleanField(p.cedula || p.CEDULA || p.Cedula, '');
   const id = cleanField(p.id || p.ID || p.Id, '');
 
-  if (!nombre && !cedula && !id) return false;
-  if (nombre.toLowerCase() === 'paciente sin nombre' && (!cedula || cedula === 'V-00000000')) return false;
-  if (cedula === 'V-00000000' && (!nombre || nombre.toLowerCase() === 'paciente sin nombre')) return false;
-  if (nombre.length < 2 && !cedula) return false;
+  if (!id || id === 'PAC-000') return false;
+  if (isGhostCedula(cedula)) return false;
+  if (isGhostNombre(nombre)) return false;
+  if (nombre.length < 2) return false;
   return true;
 }
 
@@ -119,8 +134,8 @@ export function isValidPago(p: any): boolean {
   const id = cleanField(p.id || p.ID || p.Id, '');
   const abono = Number(p.abono || p.ABONO || p.Abono || 0);
   const cargo = Number(p.cargo || p.CARGO || p.Cargo || 0);
-  if (!cod && !id) return false;
-  if (cod.startsWith('REC-') && abono === 0 && cargo === 0 && (!id || id === 'PAC-000')) return false;
+  if (!cod || !id || id === 'PAC-000') return false;
+  if (cod.startsWith('REC-') && abono === 0 && cargo === 0) return false;
   return true;
 }
 
@@ -287,21 +302,65 @@ export function normalizeFinanciamiento(f: any): FinanciamientoCirugia {
       fechaEstimadaCirugia: new Date().toISOString().split('T')[0]
     };
   }
+
+  let combo: any[] = [];
+  if (Array.isArray(f.comboProcedimientos)) {
+    combo = f.comboProcedimientos;
+  } else if (typeof (f.comboProcedimientos || f.Combo_Procedimientos) === 'string') {
+    try {
+      const parsed = JSON.parse(f.comboProcedimientos || f.Combo_Procedimientos);
+      if (Array.isArray(parsed)) combo = parsed;
+    } catch (e) {
+      combo = [];
+    }
+  }
+
+  const costoTotalCirugia = Number(f.costoTotalCirugia ?? f.Costo_Total_Cirugia ?? f.costo_total_cirugia ?? 0);
+  let descuentoMonto = Number(f.descuentoMonto ?? f.Descuento_Monto ?? f.descuento_monto ?? 0);
+  let costoSubtotal = Number(f.costoSubtotal ?? f.Costo_Subtotal ?? f.costo_subtotal ?? 0);
+
+  // Reconciliación matemática:
+  // 1. Si existe subtotal mayor al total neto pero no se leyó descuentoMonto explícito
+  if (costoSubtotal > costoTotalCirugia && costoTotalCirugia > 0 && descuentoMonto === 0) {
+    descuentoMonto = costoSubtotal - costoTotalCirugia;
+  }
+  // 2. Si existe descuento pero el subtotal no vino definido o vino igual al total neto
+  if (descuentoMonto > 0 && (costoSubtotal === 0 || costoSubtotal === costoTotalCirugia)) {
+    costoSubtotal = costoTotalCirugia + descuentoMonto;
+  }
+  // 3. Si no hay descuento ni subtotal, el subtotal base es el costo total
+  if (costoSubtotal === 0 && costoTotalCirugia > 0) {
+    costoSubtotal = costoTotalCirugia;
+  }
+
+  let cuponCodigo = String(f.cuponCodigo ?? f.Cupon_Codigo ?? f.cupon_codigo ?? 'NINGUNO').trim();
+  if ((!cuponCodigo || cuponCodigo === 'NINGUNO' || cuponCodigo === 'undefined') && descuentoMonto > 0) {
+    cuponCodigo = 'DESCUENTO_APLICADO';
+  }
+
+  const cuotasTotales = Number(f.cuotasTotales ?? f.Cuotas_Totales ?? f.cuotas_totales ?? 1);
+  const montoAbonado = Number(f.montoAbonado ?? f.Monto_Abonado ?? f.monto_abonado ?? 0);
+  const saldoPendiente = Number(f.saldoPendiente ?? f.Saldo_Pendiente ?? f.saldo_pendiente ?? Math.max(0, costoTotalCirugia - montoAbonado));
+  let montoCuotaMensual = Number(f.montoCuotaMensual ?? f.Monto_Cuota_Mensual ?? f.monto_cuota_mensual ?? 0);
+  if (montoCuotaMensual === 0 && cuotasTotales > 0 && saldoPendiente > 0) {
+    montoCuotaMensual = Math.round(saldoPendiente / cuotasTotales);
+  }
+
   return {
     planId: String(f.planId || f.Plan_ID || f.plan_id || `FIN-${Date.now()}`),
     pacienteId: String(f.pacienteId || f.Paciente_ID || f.paciente_id || 'PAC-000'),
     procedimiento: String(f.procedimiento || f.Procedimiento || f.PROCEDIMIENTO || 'Cirugía'),
-    comboProcedimientos: Array.isArray(f.comboProcedimientos) ? f.comboProcedimientos : [],
-    tipoPago: f.tipoPago || 'Financiamiento',
-    planOpcionId: f.planOpcionId || 'plan_12m',
-    costoSubtotal: Number(f.costoSubtotal || f.costoTotalCirugia || f.Costo_Total_Cirugia || 0),
-    cuponCodigo: f.cuponCodigo || 'NINGUNO',
-    descuentoMonto: Number(f.descuentoMonto || 0),
-    costoTotalCirugia: Number(f.costoTotalCirugia || f.Costo_Total_Cirugia || f.costo_total_cirugia || 0),
-    cuotasTotales: Number(f.cuotasTotales || f.Cuotas_Totales || f.cuotas_totales || 1),
-    montoAbonado: Number(f.montoAbonado || f.Monto_Abonado || f.monto_abonado || 0),
-    saldoPendiente: Number(f.saldoPendiente || f.Saldo_Pendiente || f.saldo_pendiente || 0),
-    montoCuotaMensual: Number(f.montoCuotaMensual || 0),
+    comboProcedimientos: combo,
+    tipoPago: f.tipoPago || f.Tipo_Pago || f.tipo_pago || (cuotasTotales <= 1 ? 'Contado' : 'Financiamiento'),
+    planOpcionId: f.planOpcionId || f.Plan_Opcion_Id || f.plan_opcion_id || 'plan_12m',
+    costoSubtotal,
+    cuponCodigo,
+    descuentoMonto,
+    costoTotalCirugia,
+    cuotasTotales,
+    montoAbonado,
+    saldoPendiente,
+    montoCuotaMensual,
     estadoFinanciero: (f.estadoFinanciero || f.Estado_Financiero || f.estado_financiero || 'Al día') as any,
     fechaInicio: String(f.fechaInicio || f.Fecha_Inicio || f.fecha_inicio || new Date().toISOString().split('T')[0]),
     fechaEstimadaCirugia: String(f.fechaEstimadaCirugia || f.Fecha_Estimada_Cirugia || f.fecha_estimada_cirugia || new Date().toISOString().split('T')[0])
@@ -867,7 +926,7 @@ export class StorageService {
   }
 
   static saveActividades(list: ActividadCRM[]): void {
-    const normalized = (list || []).map(normalizeActividad);
+    const normalized = (list || []).filter(isValidActividad).map(normalizeActividad);
     localStorage.setItem(KEYS.ACTIVIDADES, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('drb-data-changed'));
@@ -886,11 +945,11 @@ export class StorageService {
     } else {
       list = [];
     }
-    return list.map(normalizeFinanciamiento);
+    return list.filter(isValidFinanciamiento).map(normalizeFinanciamiento);
   }
 
   static saveFinanciamientos(list: FinanciamientoCirugia[]): void {
-    const normalized = (list || []).map(normalizeFinanciamiento);
+    const normalized = (list || []).filter(isValidFinanciamiento).map(normalizeFinanciamiento);
     localStorage.setItem(KEYS.FINANCIAMIENTOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('drb-data-changed'));
@@ -909,11 +968,11 @@ export class StorageService {
     } else {
       list = [];
     }
-    return list.map(normalizeReintegro);
+    return list.filter(isValidReintegro).map(normalizeReintegro);
   }
 
   static saveReintegros(list: Reintegro[]): void {
-    const normalized = (list || []).map(normalizeReintegro);
+    const normalized = (list || []).filter(isValidReintegro).map(normalizeReintegro);
     localStorage.setItem(KEYS.REINTEGROS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('drb-data-changed'));
@@ -2246,6 +2305,9 @@ export class StorageService {
 
         // 5. Financiamientos
         if (data.financiamientos && Array.isArray(data.financiamientos)) {
+          const localFinMap = new Map(this.getFinanciamientos().map(f => [f.planId, f]));
+          const plansToResyncToGas: FinanciamientoCirugia[] = [];
+
           const remoteFin = data.financiamientos
             .filter(isValidFinanciamiento)
             .map(normalizeFinanciamiento)
@@ -2253,9 +2315,46 @@ export class StorageService {
               const pIdUpper = String(f.pacienteId || '').trim().toUpperCase();
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
+            })
+            .map(f => {
+              const local = localFinMap.get(f.planId);
+              if (local) {
+                let modified = false;
+                // Si la fila remota no tiene descuento registrado (por provenir de hoja previa sin columnas),
+                // pero la versión local sí tenía descuento: PRESERVARLO para que jamás se borre al iniciar sesión
+                if ((!f.descuentoMonto || f.descuentoMonto === 0) && local.descuentoMonto && local.descuentoMonto > 0) {
+                  f.descuentoMonto = local.descuentoMonto;
+                  f.cuponCodigo = local.cuponCodigo || f.cuponCodigo || 'DESCUENTO_APLICADO';
+                  f.costoSubtotal = local.costoSubtotal || (f.costoTotalCirugia + local.descuentoMonto);
+                  modified = true;
+                }
+                if ((!f.comboProcedimientos || f.comboProcedimientos.length === 0) && local.comboProcedimientos && local.comboProcedimientos.length > 0) {
+                  f.comboProcedimientos = local.comboProcedimientos;
+                  modified = true;
+                }
+                if (local.tipoPago && (!f.tipoPago || f.tipoPago === 'Financiamiento')) {
+                  f.tipoPago = local.tipoPago;
+                }
+                if (local.planOpcionId && (!f.planOpcionId || f.planOpcionId === 'plan_12m')) {
+                  f.planOpcionId = local.planOpcionId;
+                }
+                if (modified) {
+                  plansToResyncToGas.push(f);
+                }
+              }
+              return f;
             });
 
           this.saveFinanciamientos(remoteFin);
+
+          // Si rescatamos descuentos locales no persistidos en Sheets, enviarlos a GAS
+          if (plansToResyncToGas.length > 0 && gasUrl) {
+            plansToResyncToGas.forEach(plan => {
+              GasService.sendPost(gasUrl, { action: 'saveFinanciamiento', financiamiento: plan }).catch(err =>
+                console.warn('Aviso sincronización GAS auto-rescue descuento:', err?.message || err)
+              );
+            });
+          }
         }
 
         // 6. Reintegros
@@ -2574,6 +2673,57 @@ export class StorageService {
       }
     }
     return { success: true, message: '¡Base de datos local vaciada con éxito (Sistema Virgen)!' };
+  }
+
+  // --- PURGA DE REGISTROS FANTASMA Y DATOS SIN CÉDULA VÁLIDA ---
+  static async purgeGhostRecordsFromAllTables(): Promise<{ success: boolean; message: string }> {
+    try {
+      // 1. Limpieza estricta en memoria y localStorage
+      const cleanPacientes = this.getPacientes().filter(isValidPaciente);
+      this.savePacientes(cleanPacientes);
+
+      const validPatientIds = new Set(cleanPacientes.map(p => p.id.toUpperCase()));
+
+      const cleanFin = this.getFinanciamientos().filter(f => f && f.pacienteId && validPatientIds.has(f.pacienteId.toUpperCase()));
+      this.saveFinanciamientos(cleanFin);
+
+      const cleanPagos = this.getPagos().filter(p => p && p.id && validPatientIds.has(p.id.toUpperCase()));
+      this.savePagos(cleanPagos);
+
+      const cleanAct = this.getActividades().filter(a => a && a.pacienteId && validPatientIds.has(a.pacienteId.toUpperCase()));
+      this.saveActividades(cleanAct);
+
+      const cleanReint = this.getReintegros().filter(r => r && r.pacienteId && validPatientIds.has(r.pacienteId.toUpperCase()));
+      this.saveReintegros(cleanReint);
+
+      // 2. Ejecutar purga directa en Google Sheets vía el backend
+      try {
+        await fetch('/api/purge-ghosts', { method: 'POST' });
+      } catch (err) {
+        console.warn('Aviso al purgar ghosts en backend:', err);
+      }
+
+      // 3. También enviar orden directa a GAS si hay URL
+      const gasUrl = this.getGasUrl();
+      if (gasUrl) {
+        try {
+          await GasService.sendPost(gasUrl, { action: 'deletePaciente', cedula: 'V-00000000' });
+          await GasService.sendPost(gasUrl, { action: 'deletePaciente', pacienteId: 'PAC-000' });
+        } catch (e) {
+          console.warn('Aviso purga directa GAS:', e);
+        }
+      }
+
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('drb-data-changed'));
+
+      return {
+        success: true,
+        message: 'Registros fantasmas y datos asociados eliminados exitosamente de todas las tablas.'
+      };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error al purgar registros fantasmas' };
+    }
   }
 
   // --- REINICIAR A DATOS DEMO ---
