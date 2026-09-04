@@ -100,40 +100,85 @@ export function cleanPhoneField(rawPhone: any, id?: string, cedula?: string): st
   return cleaned;
 }
 
+export function isValidPaciente(p: any): boolean {
+  if (!p || typeof p !== 'object') return false;
+  const nombre = cleanField(p.nombre || p.NOMBRE || p.Nombre, '');
+  const cedula = cleanField(p.cedula || p.CEDULA || p.Cedula, '');
+  const id = cleanField(p.id || p.ID || p.Id, '');
+
+  if (!nombre && !cedula && !id) return false;
+  if (nombre.toLowerCase() === 'paciente sin nombre' && (!cedula || cedula === 'V-00000000')) return false;
+  if (cedula === 'V-00000000' && (!nombre || nombre.toLowerCase() === 'paciente sin nombre')) return false;
+  if (nombre.length < 2 && !cedula) return false;
+  return true;
+}
+
+export function isValidPago(p: any): boolean {
+  if (!p || typeof p !== 'object') return false;
+  const cod = cleanField(p.cod || p.COD || p.Cod, '');
+  const id = cleanField(p.id || p.ID || p.Id, '');
+  const abono = Number(p.abono || p.ABONO || p.Abono || 0);
+  const cargo = Number(p.cargo || p.CARGO || p.Cargo || 0);
+  if (!cod && !id) return false;
+  if (cod.startsWith('REC-') && abono === 0 && cargo === 0 && (!id || id === 'PAC-000')) return false;
+  return true;
+}
+
+export function isValidActividad(a: any): boolean {
+  if (!a || typeof a !== 'object') return false;
+  const actividadId = cleanField(a.actividadId || a.Actividad_ID || a.actividad_id, '');
+  const pacienteId = cleanField(a.pacienteId || a.Paciente_ID || a.paciente_id, '');
+  return Boolean(actividadId && pacienteId && pacienteId !== 'PAC-000');
+}
+
+export function isValidFinanciamiento(f: any): boolean {
+  if (!f || typeof f !== 'object') return false;
+  const planId = cleanField(f.planId || f.Plan_ID || f.plan_id, '');
+  const pacienteId = cleanField(f.pacienteId || f.Paciente_ID || f.paciente_id, '');
+  return Boolean(planId && pacienteId && pacienteId !== 'PAC-000');
+}
+
+export function isValidReintegro(r: any): boolean {
+  if (!r || typeof r !== 'object') return false;
+  const reintegroId = cleanField(r.reintegroId || r.Reintegro_ID || r.reintegro_id, '');
+  const pacienteId = cleanField(r.pacienteId || r.Paciente_ID || r.paciente_id, '');
+  return Boolean(reintegroId && pacienteId && pacienteId !== 'PAC-000');
+}
+
 export function normalizePaciente(p: any): Paciente {
   if (!p || typeof p !== 'object') {
     return {
-      id: `PAC-${Date.now()}`,
-      cedula: 'V-00000000',
-      nombre: 'Paciente sin nombre',
+      id: '',
+      cedula: '',
+      nombre: '',
       genero: 'Femenino',
-      correo: 'paciente@gmail.com',
+      correo: '',
       telefono: 'No especificado',
       contactada: 'Por Contactar',
       fecha: new Date().toISOString().split('T')[0],
       promocion: 'Directo',
       procedimiento: 'Consulta General',
-      direccion: 'Sin dirección'
+      direccion: ''
     };
   }
 
-  const pId = cleanField(p.id || p.ID || p.Id, `PAC-${Date.now()}`);
-  const pCedula = cleanField(p.cedula || p.CEDULA || p.Cedula, 'V-00000000');
+  const pId = cleanField(p.id || p.ID || p.Id, '');
+  const pCedula = cleanField(p.cedula || p.CEDULA || p.Cedula, '');
   const rawTel = p.telefono || p.TELEFONO || p.Telefono;
   const pTelefono = cleanPhoneField(rawTel, pId, pCedula);
 
   return {
-    id: pId,
+    id: pId || (pCedula ? `PAC-${pCedula.replace(/\D/g, '')}` : `PAC-${Date.now()}`),
     cedula: pCedula,
-    nombre: cleanField(p.nombre || p.NOMBRE || p.Nombre, 'Paciente sin nombre'),
+    nombre: cleanField(p.nombre || p.NOMBRE || p.Nombre, ''),
     genero: (cleanField(p.genero || p.GENERO || p.Genero, 'Femenino')) as any,
-    correo: cleanField(p.correo || p.CORREO || p.Correo, 'paciente@gmail.com'),
+    correo: cleanField(p.correo || p.CORREO || p.Correo, ''),
     telefono: pTelefono,
     contactada: cleanField(p.contactada || p.CONTACTADA || p.Contactada, 'Por Contactar'),
     fecha: cleanField(p.fecha || p.FECHA || p.Fecha, new Date().toISOString().split('T')[0]),
     promocion: cleanField(p.promocion || p.PROMOCION || p.Promocion, 'Directo'),
     procedimiento: cleanField(p.procedimiento || p.PROCEDIMIENTO || p.Procedimiento, 'Consulta General'),
-    direccion: cleanField(p.direccion || p.DIRECCION || p.Direccion, 'Sin dirección')
+    direccion: cleanField(p.direccion || p.DIRECCION || p.Direccion, '')
   };
 }
 
@@ -141,10 +186,14 @@ export function normalizeUsuario(u: any): Usuario {
   if (!u || typeof u !== 'object') {
     return INITIAL_USUARIOS[0];
   }
+  const cleanId = String(u.usuarioId || u.Usuario_ID || u.usuario_id || u.USUARIO_ID || u.id || '').trim();
+  const cleanEmail = String(u.email || u.Email || u.EMAIL || '').trim().toLowerCase();
+  const cleanName = String(u.nombre || u.Nombre || u.NOMBRE || '').trim();
+
   return {
-    usuarioId: String(u.usuarioId || u.Usuario_ID || u.usuario_id || u.USUARIO_ID || u.id || `USR-${Date.now()}`),
-    nombre: String(u.nombre || u.Nombre || u.NOMBRE || 'Usuario'),
-    email: String(u.email || u.Email || u.EMAIL || 'usuario@drbelleza.com'),
+    usuarioId: cleanId,
+    nombre: cleanName || 'Usuario',
+    email: cleanEmail,
     passwordHash: String(u.passwordHash || u.Password_Hash || u.password_hash || u.password || '123456'),
     rol: normalizeUserRole(u.rol || u.Rol || u.ROL),
     estatus: (u.estatus || u.Estatus || u.ESTATUS || 'Activo') as any,
@@ -384,7 +433,16 @@ export class StorageService {
     'USR-617',
     'USR-305',
     'USR-421',
-    'USR-923'
+    'USR-923',
+    'USR-893'
+  ];
+
+  static readonly PROBLEMATIC_USER_EMAILS: string[] = [
+    'yoly@becerra.com',
+    'geraninchiqui@gmail.com',
+    'prueba@prueba1.com',
+    'geraldine@rincon.com',
+    'geraldine@pruebas.com'
   ];
 
   // --- INICIALIZACIÓN ---
@@ -402,13 +460,13 @@ export class StorageService {
       list = [];
     }
 
-    const normalized = list.map(normalizePaciente);
+    const normalized = list.filter(isValidPaciente).map(normalizePaciente);
     const unique: Paciente[] = [];
     const seenIds = new Set<string>();
     const seenCedulas = new Set<string>();
 
     for (const p of normalized) {
-      if (!p || !p.id) continue;
+      if (!p || !p.id || !isValidPaciente(p)) continue;
       const idKey = String(p.id).trim().toUpperCase();
       const cedKey = String(p.cedula || '').trim().toUpperCase();
 
@@ -424,13 +482,13 @@ export class StorageService {
   }
 
   static savePacientes(list: Paciente[]): void {
-    const normalized = (list || []).map(normalizePaciente);
+    const normalized = (list || []).filter(isValidPaciente).map(normalizePaciente);
     const unique: Paciente[] = [];
     const seenIds = new Set<string>();
     const seenCedulas = new Set<string>();
 
     for (const p of normalized) {
-      if (!p || !p.id) continue;
+      if (!p || !p.id || !isValidPaciente(p)) continue;
       const idKey = String(p.id).trim().toUpperCase();
       const cedKey = String(p.cedula || '').trim().toUpperCase();
 
@@ -460,16 +518,16 @@ export class StorageService {
     } else {
       list = [];
     }
-    return list.map(normalizePago);
+    return list.filter(isValidPago).map(normalizePago);
   }
 
   static savePagos(list: Pago[]): void {
-    const normalized = (list || []).map(normalizePago);
+    const normalized = (list || []).filter(isValidPago).map(normalizePago);
     const unique: Pago[] = [];
     const seenCods = new Set<string>();
 
     for (const p of normalized) {
-      if (!p || !p.cod) continue;
+      if (!p || !p.cod || !isValidPago(p)) continue;
       const codKey = String(p.cod).trim().toUpperCase();
       if (seenCods.has(codKey)) continue;
       seenCods.add(codKey);
@@ -508,7 +566,7 @@ export class StorageService {
       'valeria@drbelleza.com'
     ];
 
-    // --- PURGA ÚNICA SOLICITADA POR EL USUARIO ---
+    // --- PURGA ÚNICA SOLICITADA POR EL USUARIO (SOLO LOCAL) ---
     // Conservar ÚNICAMENTE a Edgar Morales y Maria Claudia Colmenares, y registrar los demás desde cero
     const PURGE_KEY = 'drb_purge_all_users_except_edgar_maria_v2';
     if (!localStorage.getItem(PURGE_KEY)) {
@@ -529,23 +587,6 @@ export class StorageService {
       // Restablecer la lista a los dos administradores autorizados
       list = [...INITIAL_USUARIOS];
       localStorage.setItem(KEYS.USUARIOS, JSON.stringify(list));
-
-      // Sobrescribir inmediatamente Google Sheets con la lista canónica limpia (Edgar Morales y Maria Claudia Colmenares)
-      const gasUrl = this.getGasUrl();
-      if (gasUrl) {
-        GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: list }).catch(() => {});
-        oldDemoEmails.forEach(em => {
-          GasService.sendPost(gasUrl, { action: 'deleteUsuario', email: em }).catch(() => {});
-        });
-      }
-    }
-    
-    // --- PURGA DE USUARIOS PROBLEMÁTICOS SOLICITADA POR EL USUARIO ---
-    // USR-973, USR-706, USR-617, USR-305, USR-421, USR-923
-    const PURGE_PROBLEMATIC_KEY = 'drb_purge_problematic_v7';
-    if (!localStorage.getItem(PURGE_PROBLEMATIC_KEY)) {
-      localStorage.setItem(PURGE_PROBLEMATIC_KEY, 'true');
-      this.purgeProblematicUsersFromSheetsAndLocal().catch(() => {});
     }
 
     // Deduplicar estrictamente por correo electrónico (normalizado a minúsculas)
@@ -608,7 +649,15 @@ export class StorageService {
   }
 
   static saveUsuarios(list: Usuario[]): void {
-    const normalized = (list || []).map(normalizeUsuario);
+    const deleted = this.getDeletedUserIds();
+    const normalized = (list || [])
+      .map(normalizeUsuario)
+      .filter(u => {
+        if (!u || !u.email || !u.usuarioId) return false;
+        const uIdUpper = String(u.usuarioId).trim().toUpperCase();
+        const emailUpper = String(u.email).trim().toUpperCase();
+        return !deleted.has(uIdUpper) && !deleted.has(emailUpper);
+      });
     localStorage.setItem(KEYS.USUARIOS, JSON.stringify(normalized));
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('drb-data-changed'));
@@ -1262,6 +1311,10 @@ export class StorageService {
     return newId;
   }
 
+  static getNextUserId(): string {
+    return this.generateUserId();
+  }
+
   // --- REGISTRO DE TELÉFONOS EN VAULT PERSISTENTE ---
   static getPhoneVault(): Record<string, string> {
     try {
@@ -1333,8 +1386,29 @@ export class StorageService {
   }
 
   // --- REGISTRO DE USUARIOS ELIMINADOS (TOMBSTONES) ---
+  static async initDeletedUsersFromServer(): Promise<void> {
+    try {
+      const res = await fetch('/api/deleted-users');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.deletedUserIds)) {
+          const current = this.getDeletedUserIds();
+          data.deletedUserIds.forEach((id: string) => {
+            if (id && typeof id === 'string') current.add(id.trim().toUpperCase());
+          });
+          localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
+        }
+      }
+    } catch {
+      // offline / quiet
+    }
+  }
+
   static getDeletedUserIds(): Set<string> {
-    const set = new Set<string>(this.PROBLEMATIC_USER_IDS.map(id => id.toUpperCase()));
+    const set = new Set<string>([
+      ...this.PROBLEMATIC_USER_IDS.map(id => id.toUpperCase()),
+      ...this.PROBLEMATIC_USER_EMAILS.map(e => e.toUpperCase())
+    ]);
     try {
       const data = localStorage.getItem('drb_deleted_usuarios_v1');
       if (data) {
@@ -1351,19 +1425,41 @@ export class StorageService {
 
   static addDeletedUserId(id?: string, email?: string): void {
     const current = this.getDeletedUserIds();
-    if (id) current.add(String(id).trim().toUpperCase());
-    if (email) current.add(String(email).trim().toUpperCase());
+    const cleanId = id ? String(id).trim().toUpperCase() : undefined;
+    const cleanEmail = email ? String(email).trim().toUpperCase() : undefined;
+    if (cleanId) current.add(cleanId);
+    if (cleanEmail) current.add(cleanEmail);
     localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
+
+    // Sincronizar persistentemente con el servidor
+    fetch('/api/deleted-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: cleanId, email: cleanEmail })
+    }).catch(() => {});
   }
 
   static removeDeletedUserId(id?: string, email?: string): void {
     const current = this.getDeletedUserIds();
-    const problematicUpper = this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase());
-    if (id && !problematicUpper.includes(id.trim().toUpperCase())) {
-      current.delete(String(id).trim().toUpperCase());
+    const problematicUpper = [
+      ...this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()),
+      ...this.PROBLEMATIC_USER_EMAILS.map(e => e.toUpperCase())
+    ];
+    const cleanId = id ? String(id).trim().toUpperCase() : undefined;
+    const cleanEmail = email ? String(email).trim().toUpperCase() : undefined;
+    if (cleanId && !problematicUpper.includes(cleanId)) {
+      current.delete(cleanId);
     }
-    if (email) current.delete(String(email).trim().toUpperCase());
+    if (cleanEmail && !problematicUpper.includes(cleanEmail)) {
+      current.delete(cleanEmail);
+    }
     localStorage.setItem('drb_deleted_usuarios_v1', JSON.stringify(Array.from(current)));
+
+    fetch('/api/deleted-users', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: cleanId, email: cleanEmail })
+    }).catch(() => {});
   }
 
   static getPendingNewUsers(): Usuario[] {
@@ -1373,11 +1469,16 @@ export class StorageService {
       if (data) {
         const arr = JSON.parse(data);
         if (Array.isArray(arr)) {
-          return arr.filter(u => {
+          const clean = arr.filter(u => {
             const uIdUpper = String(u?.usuarioId || '').trim().toUpperCase();
             const emailUpper = String(u?.email || '').trim().toUpperCase();
+            if (!emailUpper || !emailUpper.includes('@')) return false;
             return !deleted.has(uIdUpper) && !deleted.has(emailUpper);
           });
+          if (clean.length !== arr.length) {
+            localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(clean));
+          }
+          return clean;
         }
       }
     } catch {
@@ -1388,9 +1489,10 @@ export class StorageService {
 
   static addPendingNewUser(user: Usuario): void {
     const cleanId = (user.usuarioId || '').trim().toUpperCase();
-    if (this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(cleanId)) return;
-    const list = this.getPendingNewUsers();
     const cleanEmail = (user.email || '').trim().toLowerCase();
+    const deleted = this.getDeletedUserIds();
+    if (deleted.has(cleanId) || deleted.has(cleanEmail.toUpperCase())) return;
+    const list = this.getPendingNewUsers();
     if (!list.some(u => (u.usuarioId && u.usuarioId.trim().toUpperCase() === cleanId) || (u.email && u.email.trim().toLowerCase() === cleanEmail))) {
       list.push(user);
       localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(list));
@@ -1418,16 +1520,27 @@ export class StorageService {
     this.PROBLEMATIC_USER_IDS.forEach(id => {
       this.addDeletedUserId(id);
     });
+    this.PROBLEMATIC_USER_EMAILS.forEach(email => {
+      this.addDeletedUserId(undefined, email);
+    });
+
+    // Purgar también directamente vía backend
+    fetch('/api/purge-users', { method: 'POST' }).catch(() => {});
 
     // 2. Limpiar del almacenamiento local (KEYS.USUARIOS y drb_pending_new_usuarios_v1)
     try {
+      const problematicUpper = [
+        ...this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()),
+        ...this.PROBLEMATIC_USER_EMAILS.map(e => e.toUpperCase())
+      ];
       const rawUsers = localStorage.getItem(KEYS.USUARIOS);
       if (rawUsers) {
         const parsed = JSON.parse(rawUsers);
         if (Array.isArray(parsed)) {
           const filtered = parsed.filter((u: any) => {
             const uId = String(u.usuarioId || u.Usuario_ID || '').trim().toUpperCase();
-            return !this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(uId);
+            const uEmail = String(u.email || u.Email || '').trim().toUpperCase();
+            return !problematicUpper.includes(uId) && !problematicUpper.includes(uEmail);
           });
           localStorage.setItem(KEYS.USUARIOS, JSON.stringify(filtered));
         }
@@ -1439,7 +1552,8 @@ export class StorageService {
         if (Array.isArray(parsed)) {
           const filtered = parsed.filter((u: any) => {
             const uId = String(u.usuarioId || u.Usuario_ID || '').trim().toUpperCase();
-            return !this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase()).includes(uId);
+            const uEmail = String(u.email || u.Email || '').trim().toUpperCase();
+            return !problematicUpper.includes(uId) && !problematicUpper.includes(uEmail);
           });
           localStorage.setItem('drb_pending_new_usuarios_v1', JSON.stringify(filtered));
         }
@@ -1448,38 +1562,23 @@ export class StorageService {
       console.warn('Error limpiando almacenamiento local de usuarios conflictivos:', e);
     }
 
-    // 3. Enviar orden directa e imperativa a Google Sheets
+    // 3. Enviar orden directa e imperativa a Google Sheets (en lote único, sin peticiones paralelas)
     if (gasUrl) {
       try {
-        // Enviar orden de eliminación directa por cada ID conflictivo individualmente
-        await Promise.allSettled(
-          this.PROBLEMATIC_USER_IDS.map(id =>
-            GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: id })
-          )
-        );
-
-        // Enviar orden colectiva en lote para asegurar que cualquier fila sea borrada
         await GasService.sendPost(gasUrl, {
           action: 'deleteUsuario',
           usuarioIds: this.PROBLEMATIC_USER_IDS
         }).catch(() => {});
-
-        // Obtener lista canónica de usuarios autorizados (sin los eliminados) y sincronizarla en la hoja Usuarios
-        const cleanUsers = this.getUsuarios();
-        await GasService.sendPost(gasUrl, {
-          action: 'syncUsuarios',
-          usuarios: cleanUsers
-        });
 
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('drb-data-changed'));
 
         return {
           success: true,
-          message: `Orden ejecutada: los usuarios (${this.PROBLEMATIC_USER_IDS.join(', ')}) fueron borrados de Google Sheets y del sistema permanentemente.`
+          message: `Orden ejecutada: los usuarios conflictivos fueron eliminados de Google Sheets.`
         };
       } catch (err: any) {
-        console.warn('Error al enviar purga a Google Sheets:', err);
+        console.warn('Aviso al enviar purga a Google Sheets:', err);
         return {
           success: false,
           message: `Error comunicando con Google Sheets: ${err?.message || err}`
@@ -1918,6 +2017,7 @@ export class StorageService {
       try {
         await GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: userToSave });
         // Sincronizar la lista canónica limpia completa para consistencia instantánea en Sheets
+        await GasService.sendPost(gasUrl, { action: 'syncFullDatabase', usuarios: list });
         await GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: list });
         this.removePendingNewUser(userToSave.usuarioId, userToSave.email);
       } catch (err: any) {
@@ -1986,14 +2086,22 @@ export class StorageService {
     const gasUrl = this.getGasUrl();
     if (gasUrl) {
       try {
-        // 1. Enviar delete individual para purgar filas por ID y correo
+        // 1. Sobrescribir inmediatamente con syncFullDatabase para compatibilidad universal garantizada con Google Apps Script
+        await GasService.sendPost(gasUrl, { 
+          action: 'syncFullDatabase', 
+          usuarios: updated 
+        });
+
+        // 2. Enviar delete individual para purgar filas por ID y correo
         await GasService.sendPost(gasUrl, { 
           action: 'deleteUsuario', 
           usuarioId: target.usuarioId, 
-          email: target.email 
+          email: target.email,
+          usuarioIds: [target.usuarioId],
+          emails: [target.email]
         });
 
-        // 2. Sobrescribir la hoja Usuarios con la lista limpia canónica para garantizar cero duplicados o residuos
+        // 3. Sobrescribir la hoja Usuarios con la lista limpia canónica para garantizar cero duplicados o residuos
         await GasService.sendPost(gasUrl, { 
           action: 'syncUsuarios', 
           usuarios: updated 
@@ -2006,7 +2114,7 @@ export class StorageService {
     return { success: true, message: `Usuario ${target.nombre} eliminado correctamente de la aplicación y Google Sheets.` };
   }
 
-  // --- SINCRONIZACIÓN COMPLETA DESDE GOOGLE SHEETS ---
+  // --- SINCRONIZACIÓN COMPLETA DESDE GOOGLE SHEETS (SÓLO LECTURA) ---
   static async syncFromGas(): Promise<{ success: boolean; message: string }> {
     if (this.isSyncingGas) {
       return { success: true, message: 'Sincronización en curso...' };
@@ -2029,96 +2137,29 @@ export class StorageService {
         const deletedPatientIds = this.getDeletedPatientIds();
         const deletedUserIds = this.getDeletedUserIds();
 
-        // 1. Pacientes: Merge no destructivo
+        // 1. Pacientes: Leer solo pacientes legítimos de Google Sheets
         if (data.pacientes && Array.isArray(data.pacientes)) {
-          const localPacientes = this.getPacientes();
-          const localPacientesMap = new Map<string, Paciente>();
-          localPacientes.forEach(p => {
-            if (p.id) localPacientesMap.set(String(p.id).trim().toUpperCase(), p);
-            if (p.cedula) localPacientesMap.set(String(p.cedula).trim().toUpperCase(), p);
-            if (p.telefono && p.telefono !== 'No especificado') {
-              this.cachePatientPhone(p.id, p.cedula, p.telefono);
-            }
-          });
-
           const remotePacientes = data.pacientes
+            .filter(isValidPaciente)
             .map(normalizePaciente)
             .filter(p => {
-              if (!p || !p.id) return false;
+              if (!p || !p.id || !isValidPaciente(p)) return false;
               const pIdUpper = String(p.id).trim().toUpperCase();
               const pCedUpper = String(p.cedula || '').trim().toUpperCase();
-              const isDeleted = deletedPatientIds.has(pIdUpper) || (pCedUpper && deletedPatientIds.has(pCedUpper));
-              
-              if (isDeleted && gasUrl) {
-                GasService.sendPost(gasUrl, {
-                  action: 'deletePaciente',
-                  pacienteId: p.id,
-                  cedula: p.cedula || ''
-                }).catch(() => {});
-                return false;
-              }
+              if (deletedPatientIds.has(pIdUpper) || (pCedUpper && deletedPatientIds.has(pCedUpper))) return false;
               return true;
-            })
-            .map(p => {
-              const pIdUpper = String(p.id).trim().toUpperCase();
-              const pCedUpper = String(p.cedula || '').trim().toUpperCase();
-              const local = localPacientesMap.get(pIdUpper) || (pCedUpper ? localPacientesMap.get(pCedUpper) : undefined);
-              const cachedPhone = this.getCachedPhone(p.id) || this.getCachedPhone(p.cedula);
-              
-              const currentTel = p.telefono;
-              const isTelInvalid = (
-                !currentTel ||
-                currentTel === 'No especificado' ||
-                currentTel.includes('#ERROR') ||
-                currentTel.includes('#¡ERROR') ||
-                currentTel.startsWith('#')
-              );
-
-              if (isTelInvalid) {
-                const recoveredPhone = (local && local.telefono && local.telefono !== 'No especificado' && !local.telefono.includes('#ERROR'))
-                  ? local.telefono
-                  : cachedPhone;
-
-                if (recoveredPhone) {
-                  p.telefono = recoveredPhone;
-                  this.cachePatientPhone(p.id, p.cedula, recoveredPhone);
-                  if (gasUrl) {
-                    GasService.sendPost(gasUrl, { action: 'updatePaciente', paciente: p }).catch(() => {});
-                  }
-                }
-              } else {
-                this.cachePatientPhone(p.id, p.cedula, currentTel);
-              }
-              return p;
             });
 
-          // Mezclar preservando pacientes recién registrados localmente
-          const mergedPacientesMap = new Map<string, Paciente>();
-          remotePacientes.forEach(p => {
-            const key = String(p.id || '').trim().toUpperCase();
-            if (key) mergedPacientesMap.set(key, p);
-          });
-          localPacientes.forEach(p => {
-            if (!p || !p.id) return;
-            const pIdUpper = String(p.id).trim().toUpperCase();
-            const pCedUpper = String(p.cedula || '').trim().toUpperCase();
-            if (deletedPatientIds.has(pIdUpper) || (pCedUpper && deletedPatientIds.has(pCedUpper))) return;
-
-            if (!mergedPacientesMap.has(pIdUpper)) {
-              mergedPacientesMap.set(pIdUpper, p);
-              if (gasUrl) {
-                GasService.sendPost(gasUrl, { action: 'addPaciente', paciente: p }).catch(() => {});
-              }
-            }
-          });
-
-          this.savePacientes(Array.from(mergedPacientesMap.values()));
+          // Solo guardar si obtuvimos pacientes válidos
+          if (remotePacientes.length > 0) {
+            this.savePacientes(remotePacientes);
+          }
         }
 
-        // 2. Pagos: Merge no destructivo
+        // 2. Pagos: Leer pagos válidos de Google Sheets
         if (data.pagos && Array.isArray(data.pagos)) {
-          const localPagos = this.getPagos();
           const remotePagos = data.pagos
+            .filter(isValidPago)
             .map(normalizePago)
             .filter(p => {
               if (!p || !p.cod) return false;
@@ -2127,235 +2168,111 @@ export class StorageService {
               return true;
             });
 
-          const mergedPagosMap = new Map<string, Pago>();
-          remotePagos.forEach(p => {
-            const codKey = String(p.cod).trim().toUpperCase();
-            if (codKey) mergedPagosMap.set(codKey, p);
-          });
-          localPagos.forEach(p => {
-            if (!p || !p.cod) return;
-            const pIdUpper = String(p.id || '').trim().toUpperCase();
-            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
-            const codKey = String(p.cod).trim().toUpperCase();
-            if (!mergedPagosMap.has(codKey)) {
-              mergedPagosMap.set(codKey, p);
-              if (gasUrl) {
-                GasService.sendPost(gasUrl, { action: 'addPago', pago: p }).catch(() => {});
-              }
-            }
-          });
-
-          this.savePagos(Array.from(mergedPagosMap.values()));
+          this.savePagos(remotePagos);
         }
 
-        // 3. Usuarios: Merge no destructivo y deduplicado por correo único
+        // 3. Usuarios: Leer usuarios reales de Google Sheets sin llamar a syncFullDatabase
         if (data.usuarios && Array.isArray(data.usuarios)) {
-          const localUsuarios = this.getUsuarios();
-          let remoteUsuarios = data.usuarios.map(normalizeUsuario).filter(u => u && u.usuarioId && u.email);
-          const oldDemoEmails = [
-            'dra.isabella@drbelleza.com',
-            'maria.crm@drbelleza.com',
-            'dr.mendoza@drbelleza.com',
-            'carlos.finanzas@drbelleza.com',
-            'mendoza@drbelleza.com',
-            'valeria@drbelleza.com'
-          ];
+          let remoteUsuarios = data.usuarios
+            .map(normalizeUsuario)
+            .filter(u => u && u.usuarioId && u.email && u.email.includes('@'));
+
           const problematicUpper = this.PROBLEMATIC_USER_IDS.map(p => p.toUpperCase());
-          let foundProblematicInRemote = false;
 
           remoteUsuarios = remoteUsuarios.filter(u => {
-            const emailLower = u.email.toLowerCase().trim();
             const uIdUpper = String(u.usuarioId).trim().toUpperCase();
             const emailUpper = String(u.email).trim().toUpperCase();
-            if (oldDemoEmails.includes(emailLower)) return false;
-            if (problematicUpper.includes(uIdUpper)) {
-              foundProblematicInRemote = true;
-              if (gasUrl) {
-                GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: u.usuarioId }).catch(() => {});
-              }
-              return false;
-            }
-            const isDeleted = deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper);
-            if (isDeleted && gasUrl) {
-              GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioId: u.usuarioId, email: u.email }).catch(() => {});
-              return false;
-            }
+            if (problematicUpper.includes(uIdUpper)) return false;
+            if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) return false;
             return true;
           });
 
-          // Mapa indexado por email único en minúsculas.
-          // Google Sheets es la fuente de verdad central para los usuarios del sistema.
-          const mergedUsersMap = new Map<string, Usuario>();
+          // Indexar por email
+          const userMap = new Map<string, Usuario>();
           remoteUsuarios.forEach(u => {
-            const emailKey = u.email.toLowerCase().trim();
-            mergedUsersMap.set(emailKey, u);
+            const key = u.email.toLowerCase().trim();
+            userMap.set(key, u);
           });
 
-          // Solo preservar usuarios nuevos creados localmente que estén pendientes de subir a Google Sheets
-          const pendingUsers = this.getPendingNewUsers();
-          pendingUsers.forEach(u => {
-            if (!u || !u.email) return;
-            const emailKey = u.email.toLowerCase().trim();
-            const uIdUpper = String(u.usuarioId || '').trim().toUpperCase();
-            const emailUpper = String(u.email || '').trim().toUpperCase();
-            if (deletedUserIds.has(uIdUpper) || deletedUserIds.has(emailUpper)) return;
-
-            if (!mergedUsersMap.has(emailKey)) {
-              mergedUsersMap.set(emailKey, u);
-              if (gasUrl) {
-                GasService.sendPost(gasUrl, { action: 'saveUsuario', usuario: u }).catch(() => {});
-              }
-            }
-          });
-
-          // Limpiar de pendientes aquellos usuarios que ya figuran en Google Sheets
-          pendingUsers.forEach(pu => {
-            const puEmail = (pu.email || '').toLowerCase().trim();
-            if (remoteUsuarios.some(ru => (ru.email || '').toLowerCase().trim() === puEmail)) {
-              this.removePendingNewUser(pu.usuarioId, pu.email);
-            }
-          });
-
-          let mergedList = Array.from(mergedUsersMap.values());
-          let edgarIdx = mergedList.findIndex(u => u.email.toLowerCase().trim() === 'edgarmorales.asistente@gmail.com');
-          if (edgarIdx === -1) {
-            mergedList = [INITIAL_USUARIOS[0], ...mergedList];
+          // Asegurar administradores principales
+          if (!userMap.has('edgarmorales.asistente@gmail.com')) {
+            userMap.set('edgarmorales.asistente@gmail.com', INITIAL_USUARIOS[0]);
           } else {
-            mergedList[edgarIdx] = {
-              ...mergedList[edgarIdx],
+            const current = userMap.get('edgarmorales.asistente@gmail.com')!;
+            userMap.set('edgarmorales.asistente@gmail.com', {
+              ...current,
               rol: 'Administrador',
               estatus: 'Activo'
-            };
+            });
           }
 
-          let mariaIdx = mergedList.findIndex(u => u.email.toLowerCase().trim() === 'maria.colmenares@revierte.com');
-          if (mariaIdx === -1) {
-            mergedList = [...mergedList, INITIAL_USUARIOS[1]];
+          if (!userMap.has('maria.colmenares@revierte.com')) {
+            userMap.set('maria.colmenares@revierte.com', INITIAL_USUARIOS[1]);
           } else {
-            mergedList[mariaIdx] = {
-              ...mergedList[mariaIdx],
+            const current = userMap.get('maria.colmenares@revierte.com')!;
+            userMap.set('maria.colmenares@revierte.com', {
+              ...current,
               rol: 'Administrador',
               estatus: 'Activo'
-            };
-          }
-          this.saveUsuarios(mergedList);
-
-          // Si Google Sheets contenía usuarios eliminados, problemáticos o de prueba, limpiar la hoja inmediatamente
-          const hadDeletedOrLegacyInRemote = data.usuarios.length !== remoteUsuarios.length || foundProblematicInRemote;
-          if (hadDeletedOrLegacyInRemote && gasUrl) {
-            GasService.sendPost(gasUrl, { action: 'deleteUsuario', usuarioIds: this.PROBLEMATIC_USER_IDS }).catch(() => {});
-            GasService.sendPost(gasUrl, { action: 'syncUsuarios', usuarios: mergedList }).catch(() => {});
+            });
           }
 
-          // Si el usuario autenticado actualmente sufrió cambios remotos (rol, nombre, contraseña o estatus), sincronizar su sesión activa
+          const finalList = Array.from(userMap.values());
+          this.saveUsuarios(finalList);
+
+          // Sincronizar sesión activa si el usuario actual fue actualizado
           const currentAuth = this.getAuthenticatedUser();
           if (currentAuth && currentAuth.email) {
-            const updatedAuth = mergedList.find(u => u.email.toLowerCase().trim() === currentAuth.email.toLowerCase().trim());
-            if (updatedAuth && (
-              updatedAuth.rol !== currentAuth.rol ||
-              updatedAuth.nombre !== currentAuth.nombre ||
-              updatedAuth.passwordHash !== currentAuth.passwordHash ||
-              updatedAuth.estatus !== currentAuth.estatus
-            )) {
+            const updatedAuth = finalList.find(u => u.email.toLowerCase().trim() === currentAuth.email.toLowerCase().trim());
+            if (updatedAuth) {
               this.setCurrentUser(updatedAuth);
             }
           }
         }
 
-        // 4. Actividades CRM: Merge no destructivo
+        // 4. Actividades CRM
         if (data.actividades && Array.isArray(data.actividades)) {
-          const localActividades = this.getActividades();
           const remoteCRM = data.actividades
+            .filter(isValidActividad)
             .map(normalizeActividad)
             .filter(a => {
-              if (!a || !a.actividadId) return false;
               const pIdUpper = String(a.pacienteId || '').trim().toUpperCase();
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
 
-          const mergedActMap = new Map<string, ActividadCRM>();
-          remoteCRM.forEach(a => {
-            const key = String(a.actividadId).trim().toUpperCase();
-            if (key) mergedActMap.set(key, a);
-          });
-          localActividades.forEach(a => {
-            if (!a || !a.actividadId) return;
-            const pIdUpper = String(a.pacienteId || '').trim().toUpperCase();
-            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
-            const key = String(a.actividadId).trim().toUpperCase();
-            if (!mergedActMap.has(key)) {
-              mergedActMap.set(key, a);
-            }
-          });
-
-          this.saveActividades(Array.from(mergedActMap.values()));
+          this.saveActividades(remoteCRM);
         }
 
-        // 5. Financiamientos: Merge no destructivo
+        // 5. Financiamientos
         if (data.financiamientos && Array.isArray(data.financiamientos)) {
-          const localFin = this.getFinanciamientos();
           const remoteFin = data.financiamientos
+            .filter(isValidFinanciamiento)
             .map(normalizeFinanciamiento)
             .filter(f => {
-              if (!f || !f.planId) return false;
               const pIdUpper = String(f.pacienteId || '').trim().toUpperCase();
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
 
-          const mergedFinMap = new Map<string, FinanciamientoCirugia>();
-          remoteFin.forEach(f => {
-            const key = String(f.planId).trim().toUpperCase();
-            if (key) mergedFinMap.set(key, f);
-          });
-          localFin.forEach(f => {
-            if (!f || !f.planId) return;
-            const pIdUpper = String(f.pacienteId || '').trim().toUpperCase();
-            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
-            const key = String(f.planId).trim().toUpperCase();
-            if (!mergedFinMap.has(key)) {
-              mergedFinMap.set(key, f);
-              if (gasUrl) {
-                GasService.sendPost(gasUrl, { action: 'saveFinanciamiento', financiamiento: f }).catch(() => {});
-              }
-            }
-          });
-
-          this.saveFinanciamientos(Array.from(mergedFinMap.values()));
+          this.saveFinanciamientos(remoteFin);
         }
 
-        // 6. Reintegros: Merge no destructivo
+        // 6. Reintegros
         if (data.reintegros && Array.isArray(data.reintegros)) {
-          const localReint = this.getReintegros();
           const remoteReint = data.reintegros
+            .filter(isValidReintegro)
             .map(normalizeReintegro)
             .filter(r => {
-              if (!r || !r.reintegroId) return false;
               const pIdUpper = String(r.pacienteId || '').trim().toUpperCase();
               if (pIdUpper && deletedPatientIds.has(pIdUpper)) return false;
               return true;
             });
 
-          const mergedReintMap = new Map<string, Reintegro>();
-          remoteReint.forEach(r => {
-            const key = String(r.reintegroId).trim().toUpperCase();
-            if (key) mergedReintMap.set(key, r);
-          });
-          localReint.forEach(r => {
-            if (!r || !r.reintegroId) return;
-            const pIdUpper = String(r.pacienteId || '').trim().toUpperCase();
-            if (pIdUpper && deletedPatientIds.has(pIdUpper)) return;
-            const key = String(r.reintegroId).trim().toUpperCase();
-            if (!mergedReintMap.has(key)) {
-              mergedReintMap.set(key, r);
-            }
-          });
-
-          this.saveReintegros(Array.from(mergedReintMap.values()));
+          this.saveReintegros(remoteReint);
         }
 
-        // 7. Catálogo Quirúrgico: Integración remota desde Google Sheets y consolidación
+        // 7. Catálogo Quirúrgico
         if (data.catalogo && Array.isArray(data.catalogo)) {
           const remoteCatalog: ProcedureCatalogItem[] = data.catalogo
             .filter((c: any) => c && (c.Nombre || c.nombre || c.Procedimiento || c.procedimiento || c.NOMBRE || c.PROCEDIMIENTO))
@@ -2368,16 +2285,8 @@ export class StorageService {
             }));
 
           if (remoteCatalog.length > 0) {
-            const currentLocal = this.getCatalog();
-            const map = new Map<string, ProcedureCatalogItem>();
-            currentLocal.forEach(p => map.set(p.nombre.toLowerCase().trim(), p));
-            remoteCatalog.forEach((p: ProcedureCatalogItem) => map.set(p.nombre.toLowerCase().trim(), p));
-            this.saveCatalog(Array.from(map.values()), false);
+            this.saveCatalog(remoteCatalog, false);
           }
-        } else {
-          // Re-consolidar catálogo local con los nuevos financiamientos y pacientes descargados
-          const consolidated = this.getCatalog();
-          this.saveCatalog(consolidated, false);
         }
 
         const nowIso = new Date().toISOString();
@@ -2387,12 +2296,12 @@ export class StorageService {
         this.lastSyncError = null;
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('drb-data-changed'));
-        return { success: true, message: '¡Datos descargados y sincronizados correctamente desde Google Sheets!' };
+        return { success: true, message: '¡Datos cargados correctamente desde Google Sheets!' };
       }
       this.lastSyncSuccessful = false;
       this.lastSyncError = data?.error || 'Respuesta no válida de Google Sheets';
       window.dispatchEvent(new CustomEvent('drb-data-changed'));
-      return { success: false, message: data.error || 'Respuesta de sincronización no válida.' };
+      return { success: false, message: data?.error || 'Respuesta de sincronización no válida.' };
     } catch (err: any) {
       this.lastSyncSuccessful = false;
       this.lastSyncError = err.message || 'Error de conexión';

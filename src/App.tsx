@@ -75,8 +75,9 @@ export default function App() {
   useEffect(() => {
     refreshData();
 
-    // Inicialización y carga inicial desde Google Sheets
+    // Carga inicial limpia desde Google Sheets al iniciar la aplicación
     StorageService.initGasConfig()
+      .then(() => StorageService.initDeletedUsersFromServer())
       .then(() => StorageService.syncFromGas())
       .then((res) => {
         if (res && res.success) {
@@ -87,35 +88,7 @@ export default function App() {
         console.warn('Aviso sincronización inicial:', err?.message || err);
       });
 
-    // Sincronización continua cada 5 segundos para tiempo real entre múltiples dispositivos y usuarios
-    const pollIntervalId = setInterval(() => {
-      StorageService.syncFromGas()
-        .then((res) => {
-          if (res && res.success) {
-            refreshData();
-          }
-        })
-        .catch(() => {});
-    }, 5000);
-
-    // Sincronización inmediata al regresar a la pestaña o enfocar la ventana
-    const handleFocusOrVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        refreshData();
-        StorageService.syncFromGas()
-          .then((res) => {
-            if (res && res.success) {
-              refreshData();
-            }
-          })
-          .catch(() => {});
-      }
-    };
-
-    window.addEventListener('focus', handleFocusOrVisibility);
-    document.addEventListener('visibilitychange', handleFocusOrVisibility);
-
-    // Escuchar eventos de cambios en LocalStorage y CustomEvent para mantener reactividad entre pestañas
+    // Escuchar eventos de cambios en LocalStorage y CustomEvent para mantener reactividad en la UI
     const handleDataChange = () => {
       refreshData();
     };
@@ -124,9 +97,6 @@ export default function App() {
     window.addEventListener('drb-data-changed', handleDataChange);
 
     return () => {
-      clearInterval(pollIntervalId);
-      window.removeEventListener('focus', handleFocusOrVisibility);
-      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
       window.removeEventListener('storage', handleDataChange);
       window.removeEventListener('drb-data-changed', handleDataChange);
     };

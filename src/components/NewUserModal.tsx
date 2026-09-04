@@ -21,9 +21,9 @@ export const NewUserModal: React.FC<NewUserModalProps> = ({ onClose, onSave }) =
     if (!nombre.trim() || !email.trim() || !password.trim()) return;
 
     setIsSubmitting(true);
-    const count = Math.floor(100 + Math.random() * 900);
+    const nextId = StorageService.getNextUserId();
     const newUser: Usuario = {
-      usuarioId: `USR-${count}`,
+      usuarioId: nextId,
       nombre: nombre.trim(),
       email: email.trim(),
       passwordHash: password.trim(),

@@ -24,15 +24,98 @@ export class GasService {
   }
 
   /**
-   * Envía una petición POST a Google Apps Script Web App.
-   * Utiliza mode: 'cors' y formato JSON con Content-Type text/plain para evitar preflight CORS.
+   * Sanitiza el payload para garantizar que ningún usuario eliminado o conflictivo sea enviado a Google Sheets
    */
-  static async sendPost(gasUrl: string, payload: any): Promise<any> {
+  static sanitizePayload(payload: any): any {
+    if (!payload || typeof payload !== 'object') return payload;
+    const copy = { ...payload };
+    const deleted = new Set<string>([
+      'USR-973', 'USR-706', 'USR-617', 'USR-305', 'USR-421', 'USR-923', 'USR-893',
+      'YOLY@BECERRA.COM', 'GERANINCHIQUI@GMAIL.COM', 'GERALDINE@RINCON.COM',
+      'GERALDINE@PRUEBAS.COM', 'PRUEBA@PRUEBA1.COM',
+      'DRA.ISABELLA@DRBELLEZA.COM', 'MARIA.CRM@DRBELLEZA.COM', 'DR.MENDOZA@DRBELLEZA.COM',
+      'CARLOS.FINANZAS@DRBELLEZA.COM', 'MENDOZA@DRBELLEZA.COM', 'VALERIA@DRBELLEZA.COM'
+    ]);
+
+    try {
+      const raw = localStorage.getItem('drb_deleted_usuarios_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((id: string) => {
+            if (id && typeof id === 'string') deleted.add(id.trim().toUpperCase());
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (copy.action === 'saveUsuario' && copy.usuario) {
+      const uId = String(copy.usuario.usuarioId || '').trim().toUpperCase();
+      const uEmail = String(copy.usuario.email || '').trim().toUpperCase();
+      if (deleted.has(uId) || deleted.has(uEmail)) {
+        return null; // Operación bloqueada
+      }
+    }
+
+    if (Array.isArray(copy.usuarios)) {
+      copy.usuarios = copy.usuarios.filter((u: any) => {
+        const uId = String(u.usuarioId || u.Usuario_ID || '').trim().toUpperCase();
+        const uEmail = String(u.email || u.Email || '').trim().toUpperCase();
+        return !deleted.has(uId) && !deleted.has(uEmail);
+      });
+    }
+
+    return copy;
+  }
+
+  private static postQueue: Promise<any> = Promise.resolve();
+
+  /**
+   * Envía una petición POST a Google Apps Script Web App.
+   * Utiliza prioritariamente el proxy del backend (/api/gas-proxy) para aplicar validaciones y evitar CORS.
+   * Encola secuencialmente las llamadas para evitar saturar Google Sheets con peticiones simultáneas.
+   */
+  static async sendPost(gasUrl: string, rawPayload: any): Promise<any> {
+    return (this.postQueue = this.postQueue.then(
+      () => this.doSendPost(gasUrl, rawPayload),
+      () => this.doSendPost(gasUrl, rawPayload)
+    ));
+  }
+
+  private static async doSendPost(gasUrl: string, rawPayload: any): Promise<any> {
     const cleanUrl = this.normalizeUrl(gasUrl);
     if (!cleanUrl) {
       return { success: false, message: 'URL de Google Apps Script no configurada.' };
     }
 
+    const payload = this.sanitizePayload(rawPayload);
+    if (!payload) {
+      return { success: true, message: 'Operación cancelada: usuario marcado para eliminación permanente.' };
+    }
+
+    // 1. Intentar prioritariamente a través del proxy backend (seguro, sin CORS, con filtrado)
+    try {
+      const proxyRes = await fetch('/api/gas-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gasUrl: cleanUrl, payload })
+      });
+      const proxyText = await proxyRes.text();
+      try {
+        return JSON.parse(proxyText);
+      } catch {
+        return {
+          success: proxyRes.ok,
+          message: proxyText.startsWith('<') ? 'Respuesta procesada por el servidor' : proxyText
+        };
+      }
+    } catch (proxyErr) {
+      console.warn('Aviso vía proxy backend, intentando directo a Apps Script...', proxyErr);
+    }
+
+    // 2. Fallback directo a Google Apps Script
     try {
       const response = await fetch(cleanUrl, {
         method: 'POST',
@@ -42,18 +125,16 @@ export class GasService {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       const text = await response.text();
       try {
         return JSON.parse(text);
       } catch {
-        return { success: true, message: text };
+        return {
+          success: response.ok,
+          message: text.startsWith('<') ? 'Respuesta procesada por Google Apps Script' : text
+        };
       }
     } catch (err: any) {
-      console.warn('Aviso enviando petición a Apps Script:', err?.message || err);
       return {
         success: false,
         error: err?.message || 'Failed to fetch',

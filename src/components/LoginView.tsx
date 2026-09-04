@@ -22,17 +22,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sincronización proactiva de usuarios en segundo plano al cargar la pantalla de login
+  // Carga inicial limpia de usuarios al abrir la pantalla de login
   useEffect(() => {
     StorageService.initGasConfig().then(() => {
       StorageService.syncFromGas().catch(() => {});
     });
-
-    const intervalId = setInterval(() => {
-      StorageService.syncFromGas().catch(() => {});
-    }, 5000);
-
-    return () => clearInterval(intervalId);
   }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
